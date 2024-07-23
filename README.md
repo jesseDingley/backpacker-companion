@@ -1,2 +1,2 @@
 # backpacker-companion
-RAG Application for [thebrokebackpacker.com](thebrokebackpacker.com)
+RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com).
