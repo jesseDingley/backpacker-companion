@@ -1,4 +1,4 @@
-# backpacker-companion
+# Backpacker Companion RAG Application
 
 RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
 
