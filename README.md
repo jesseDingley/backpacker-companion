@@ -5,6 +5,6 @@ RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
 ## Run it locally
 
 ```sh
-pip install -r requirements.txt
+pip install -e .
 streamlit run app.py
 ```
