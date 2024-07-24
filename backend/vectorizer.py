@@ -2,6 +2,8 @@ from typing import List
 import requests
 import os
 from tqdm import tqdm
+from backend.guide_url_loader import GuideURLLoader
+from langchain_core.documents.base import Document
 
 
 class Vectorizer:
@@ -35,11 +37,15 @@ class Vectorizer:
         self.path_guide_urls = os.path.join(self.path_data, "guide_urls.txt")
 
         self.url_structures = [
-            "backpacking-{country}-ultimate-budget-travel-guide",
-            "backpacking-{country}-ultimate-travel-guide",
-            "backpacking-{country}-budget-travel-guide",
             "backpacking-{country}-travel-guide",
+            "backpacking-{country}-budget-travel-guide",
+            "backpacking-{country}-ultimate-travel-guide",
+            "backpacking-{country}-ultimate-budget-travel-guide",
+            "backpacking-{country}-destination-guide",
             "backpacking-{country}",
+            "backpacking-{country}-on-a-budget",
+            "backpacking-in-{country}",
+            "{country}-backpacking",
             "is-{country}-worth-visiting",
         ]
 
@@ -83,13 +89,19 @@ class Vectorizer:
             return False
         return len([url for url in urls if f"-{country}" in url]) == 1
 
-    def collect_urls(self) -> None:
+    def collect_urls(self, reset: bool = False) -> None:
         """
         Collect all URLs to scrape, i.e. every backpacking guide by country,
         and saves them to disk.
 
         If guide_urls.txt already exists, only new urls will be appended
+
+        Args:
+            reset (bool): if True, deletes current guide url txt file
         """
+
+        if reset and os.path.exists(self.path_guide_urls):
+            os.remove(self.path_guide_urls)
 
         valid_urls = []
 
@@ -117,8 +129,9 @@ class Vectorizer:
                 response = requests.get(url=url_to_try, headers=self.headers)
 
                 if response.status_code == 200:
-                    valid_urls.append(url_to_try)
-                    break
+                    if "text/html" in response.headers.get("content-type"):
+                        valid_urls.append(url_to_try)
+                        break
 
         write_mode = "w" if scraped_urls == [] else "a"
 
@@ -131,5 +144,20 @@ class Vectorizer:
         if valid_urls == [] and write_mode == "w":
             raise ValueError("No valid URLs found!")
 
+    def load_url_content(self) -> List[Document]:
+        """
+        Loads web page content from each guide url into a list of Langchain Documents
+
+        Returns:
+            List[Document]: list of Langchain Documents
+        """
+        with open(self.path_guide_urls, "r", encoding="utf8") as f:
+            guide_urls = [url.replace("\n", "").strip() for url in f.readlines()]
+
+        url_loader = GuideURLLoader(urls=guide_urls, show_progress_bar=True)
+
+        return url_loader.load()
+
     def run(self):
         self.collect_urls()
+        docs = self.load_url_content()
