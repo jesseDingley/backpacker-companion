@@ -5,7 +5,7 @@ with open("requirements.txt") as f:
 
 setup(
     name="backpacker-companion",
-    version="0.1.0",
+    version="0.1",
     packages=find_packages(),
     install_requires=reqs,
     python_requires=">=3.11",
