@@ -1,7 +1,10 @@
 from typing import List
 import requests
 import os
+import re
+import shutil
 from tqdm import tqdm
+from datetime import datetime
 from backend.loader import GuideURLLoader
 from backend.splitter import GuideTextSplitter
 from langchain_chroma import Chroma
@@ -34,7 +37,11 @@ class Vectorizer:
     normalize_country(country: str) -> str: Normalizes country name.
     country_url_exists(country: str, urls: List[str]) -> bool: Determines if country is in one url from a list of urls.
     collect_urls(self) -> None: Collect all URLs to scrape, i.e. every backpacking guide by country, and saves them to disk.
-    init_vector_db(self) -> None: Initializes Vector DB from content found from Guide URLs.
+    init_vector_db(self) -> None: Initializes Vector DB
+    update_vector_db(self) -> None: Updates Vector DB with content from new URLs
+    run(self, from_zero: bool) -> None: Runs vectorizer pipeline.
+    run_from_zero(self) -> None: Runs the pipeline from zero.
+    run_update(self) -> None: Runs the pipeline to update the existing vector db.
     """
 
     def __init__(
@@ -59,6 +66,7 @@ class Vectorizer:
         self.path_data = "backend/data"
         self.path_countries = os.path.join(self.path_data, "countries.txt")
         self.path_guide_urls = os.path.join(self.path_data, "guide_urls.txt")
+        self.path_history = os.path.join(self.path_data, "history.txt")
         self.path_vectordb = os.path.join(self.path_data, "db")
 
         self.url_structures = [
@@ -126,7 +134,7 @@ class Vectorizer:
         """
         if urls == []:
             return False
-        return len([url for url in urls if f"-{country}" in url]) == 1
+        return len([url for url in urls if (f"-{country}" in url) or (f"{country}-" in url)]) == 1
 
     def collect_urls(self, reset: bool = False) -> None:
         """
@@ -141,6 +149,9 @@ class Vectorizer:
 
         if reset and os.path.exists(self.path_guide_urls):
             os.remove(self.path_guide_urls)
+
+        if reset and os.path.exists(self.path_history):
+            os.remove(self.path_history)
 
         valid_urls = []
 
@@ -177,7 +188,9 @@ class Vectorizer:
         if valid_urls != []:
             with open(self.path_guide_urls, write_mode) as f:
                 if write_mode == "a":
-                    f.write("\n")
+                    now = datetime.now()
+                    now_formatted = now.strftime("%Y-%m-%d_%H:%M:%S")
+                    f.write(f"\n{now_formatted}\n")
                 f.write("\n".join(valid_urls))
 
         if valid_urls == [] and write_mode == "w":
@@ -185,7 +198,7 @@ class Vectorizer:
 
     def init_vector_db(self) -> None:
         """
-        Initializes Vector DB from content found from Guide URLs.
+        Initializes Vector DB.
         """
 
         with open(self.path_guide_urls, "r", encoding="utf8") as f:
@@ -200,8 +213,99 @@ class Vectorizer:
         texts = self.text_splitter.split_documents(docs)
         texts = filter_complex_metadata(texts)
 
+        if os.path.exists(self.path_vectordb):
+            shutil.rmtree(self.path_vectordb)
+
         Chroma.from_documents(
             documents=texts,
             embedding=self.embeddings,
             persist_directory=self.path_vectordb,
         )
+
+    def update_vector_db(self) -> None:
+        """
+        Updates Vector DB with content from new URLs
+        """
+
+        # load all urls
+        with open(self.path_guide_urls, "r", encoding="utf8") as f:
+            guide_urls = [url.replace("\n", "").strip() for url in f.readlines()]
+
+        # get dates of updates to url list
+        split_points = [
+            elt
+            for elt in guide_urls
+            if re.match(r"\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}", elt) is not None
+        ]
+
+        # no new urls
+        if split_points == []:
+            return
+
+        # load vectordb update history
+        if os.path.exists(self.path_history):
+            with open(self.path_history, "r", encoding="utf8") as f:
+                history = [line.replace("\n", "").strip() for line in f.readlines()]
+
+            # the new urls have already updated the vector db
+            if history[-1] == split_points[-1]:
+                return
+
+        # get new urls
+        split_index = [
+            i for i, elt in enumerate(guide_urls) if elt == split_points[-1]
+        ][0] + 1
+        new_urls = guide_urls[split_index:]
+
+        # create new docs
+
+        url_loader = GuideURLLoader(
+            urls=new_urls, show_progress_bar=True, **self.newspaper_kwargs
+        )
+
+        docs = url_loader.load()
+
+        texts = self.text_splitter.split_documents(docs)
+        texts = filter_complex_metadata(texts)
+
+        # load vector db
+        vectordb = Chroma(
+            persist_directory=self.path_vectordb, embedding_function=self.embeddings
+        )
+
+        # update vector db
+        vectordb.add_documents(texts)
+        del vectordb
+
+        # update history
+        if not os.path.exists(self.path_history):
+            with open(self.path_history, "w", encoding="utf8") as f:
+                f.write(split_points[-1])
+        else:
+            with open(self.path_history, "a", encoding="utf8") as f:
+                f.write(f"\n{split_points[-1]}")
+
+    def run(self, from_zero: bool) -> None:
+        """
+        Runs vectorizer pipeline.
+
+        Setting from_zero to True will overwrite collected URLs and overwrite existing Vector DB
+        Setting from_zero to False will append new URLs and update existing Vector DB
+
+        Args:
+            from_zero (bool): True to run from 0, False, to update
+        """
+        if from_zero:
+            self.collect_urls(reset=True)
+            self.init_vector_db()
+        else:
+            self.collect_urls()
+            self.update_vector_db()
+
+    def run_from_zero(self) -> None:
+        """Runs the pipeline from zero."""
+        self.run(from_zero=True)
+
+    def run_update(self) -> None:
+        """Runs the pipeline to update the existing vector db."""
+        self.run(from_zero=False)

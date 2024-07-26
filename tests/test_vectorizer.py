@@ -20,9 +20,11 @@ def test_country_url_exists():
         "https://website.com/is-bangladesh-worth-visiting",
         "https://website.com/backpacking-cambodia",
         "https://website.com/backpacking-venezuela-travel-guide",
+        "https://website.com/vietnam-backpacking",
     ]
     assert test_vectorizer.country_url_exists("venezuela", urls)
     assert test_vectorizer.country_url_exists("cambodia", urls)
     assert test_vectorizer.country_url_exists("bangladesh", urls)
     assert not test_vectorizer.country_url_exists("united-kingdom", urls)
     assert not test_vectorizer.country_url_exists("canada", [])
+    assert test_vectorizer.country_url_exists("vietnam", urls)
