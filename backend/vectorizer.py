@@ -134,7 +134,16 @@ class Vectorizer:
         """
         if urls == []:
             return False
-        return len([url for url in urls if (f"-{country}" in url) or (f"{country}-" in url)]) == 1
+        return (
+            len(
+                [
+                    url
+                    for url in urls
+                    if (f"-{country}" in url) or (f"{country}-" in url)
+                ]
+            )
+            == 1
+        )
 
     def collect_urls(self, reset: bool = False) -> None:
         """
