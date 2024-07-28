@@ -1,5 +1,4 @@
-import streamlit as st
+from backend.core import run
 
-from backend.core import get_hello_world
-
-st.title(get_hello_world())
+if __name__ == "__main__":
+    run()

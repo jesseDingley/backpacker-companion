@@ -1,4 +1,5 @@
 from backend.vectorizer import Vectorizer
+from backend.chat import Chat
 
 
 def init_vectordb() -> None:
@@ -9,3 +10,8 @@ def init_vectordb() -> None:
 def update_vectordb() -> None:
     """Update vector db."""
     Vectorizer().run_update()
+
+
+def run() -> None:
+    """Runs streamlit app."""
+    Chat().run_app()

@@ -7,13 +7,15 @@ from tqdm import tqdm
 from datetime import datetime
 from backend.loader import GuideURLLoader
 from backend.splitter import GuideTextSplitter
+from backend.const import CST
+from backend.base import Base
 from langchain_chroma import Chroma
 from langchain_community.vectorstores.utils import filter_complex_metadata
 from langchain_huggingface import HuggingFaceEmbeddings
 from newspaper import Config
 
 
-class Vectorizer:
+class Vectorizer(Base):
     """
     Class to scrape, chunk and vectorize Broke Backpacker website.
 
@@ -44,30 +46,8 @@ class Vectorizer:
     run_update(self) -> None: Runs the pipeline to update the existing vector db.
     """
 
-    def __init__(
-        self,
-        request_timeout: int = 15,
-        chunk_size: int = 500,
-        chunk_overlap: int = 0,
-        embeddings_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    ) -> None:
-        """
-        Init
-
-        Args:
-            request_timeout (int): request timeout for loading urls
-            chunk_size (int): document splitting chunk size. Has little effect due to chosen separators.
-            chunk_overlap (int): document splitting chunk overlap.
-            embeddings_model (str): HF embedding model name
-        """
-
-        self.base_url = "https://www.thebrokebackpacker.com"
-
-        self.path_data = "backend/data"
-        self.path_countries = os.path.join(self.path_data, "countries.txt")
-        self.path_guide_urls = os.path.join(self.path_data, "guide_urls.txt")
-        self.path_history = os.path.join(self.path_data, "history.txt")
-        self.path_vectordb = os.path.join(self.path_data, "db")
+    def __init__(self) -> None:
+        super().__init__()
 
         self.url_structures = [
             "backpacking-{country}-travel-guide",
@@ -82,23 +62,18 @@ class Vectorizer:
             "is-{country}-worth-visiting",
         ]
 
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
-        }
+        self.headers = {"User-Agent": CST.USER_AGENT}
 
         newspaper_config = Config()
         newspaper_config.browser_user_agent = self.headers["User-Agent"]
-        newspaper_config.request_timeout = request_timeout
-
+        newspaper_config.request_timeout = CST.REQUEST_TIMEOUT
         self.newspaper_kwargs = {"config": newspaper_config}
 
         self.text_splitter = GuideTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            chunk_size=CST.CHUNK_SIZE,
+            chunk_overlap=CST.CHUNK_OVERLAP,
             length_function=len,
         )
-
-        self.embeddings = HuggingFaceEmbeddings(model_name=embeddings_model)
 
     @staticmethod
     def normalize_country(country: str) -> str:
@@ -183,7 +158,7 @@ class Vectorizer:
 
             for struct in self.url_structures:
 
-                url_to_try = os.path.join(self.base_url, struct.format(country=country))
+                url_to_try = os.path.join(CST.BASE_URL, struct.format(country=country))
 
                 response = requests.get(url=url_to_try, headers=self.headers)
 
