@@ -32,8 +32,22 @@ class CST:
     LLM = "mistralai/Mistral-Nemo-Instruct-2407"
     # LLM = "QuantFactory/Mistral-Nemo-Instruct-2407-GGUF"
 
-    # QA PROMPT
-    QA_PROMPT = "backpacking-retrieval-qa-chat"
+    QA_SYS_PROMPT = (
+        "You are a helpful, witty, and experienced backpacker."
+        "\n\n"
+        "Answer any use questions based solely on the context below. If you are not capable of providing a thorough and well-sourced answer, do not try to. If any use questions are out of the context of travel and backpacking, politely decline to continue conversation."
+        "\n\n"
+        "<context>"
+        "\n"
+        "{context}"
+        "\n"
+        "</context>"
+    )
 
-    # Rephrase prompt
-    REPHRASE_PROMPT = "langchain-ai/chat-langchain-rephrase"
+    REPHRASE_SYS_PROMPT = (
+        "Given a chat history and the latest user question "
+        "which might reference context in the chat history, "
+        "formulate a standalone question which can be understood "
+        "without the chat history. Do NOT answer the question, "
+        "just reformulate it if needed and otherwise return it as is."
+    )
