@@ -1,12 +1,13 @@
 import os
 from dotenv import load_dotenv
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Iterator
 
 from backend.base import Base
 from backend.const import CST
 from backend.prompts import Prompts
-from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
+from langchain_huggingface import HuggingFaceEndpoint
 from langchain_chroma import Chroma
+from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
@@ -32,8 +33,15 @@ class Chat(Base):
 
         login(token=os.environ["HUGGINGFACE_API_KEY"])
 
+        callbacks = [StreamingStdOutCallbackHandler()]
+
         llm = HuggingFaceEndpoint(
-            repo_id=CST.LLM, task="text-generation", max_new_tokens=512, temperature=0.1
+            repo_id=CST.LLM,
+            task="text-generation",
+            max_new_tokens=512,
+            temperature=0.1,
+            callbacks=callbacks,
+            streaming=True,
         )
 
         prompts = Prompts()
@@ -53,42 +61,37 @@ class Chat(Base):
             retriever=history_aware_retriever, combine_docs_chain=combine_docs_chain
         )
 
-    def call(self, query: str, chat_history: List[Tuple[str, str]]) -> Dict[str, str]:
+        self.formatted_output = None
+
+    def stream(self, query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
         """
-        Calls LLM with a query and returns generated response.
+        Streams LLM response given a query and chat history.
 
         Args:
             query (str): user query
             chat_history (List[Tuple[str, str]]): chat history like [("human": msg) -> ("ai": response) -> ...]
 
         Returns:
-            Dict[str, str]: out dict containing query, response, and source docs
+            Iterable[str]: iterator on llm response chunks
         """
+        self.formatted_output = {}
+        acc_answer = ""
+        for chunk in self.qa.stream(
+            input={"input": query + " AI: ", "chat_history": chat_history}
+        ):
+            if input_chunk := chunk.get("input"):
+                self.formatted_output["input"] = input_chunk
 
-        no_reply_count = 0
+            if context_chunk := chunk.get("context"):
+                self.formatted_output["context"] = context_chunk
 
-        while True:
+            if answer_chunk := chunk.get("answer"):
+                if answer_chunk == "</s>":
+                    break
+                acc_answer += answer_chunk
+                yield answer_chunk
 
-            generated_response = self.qa.invoke(
-                input={"input": query + " AI: ", "chat_history": chat_history}
-            )
-
-            if not generated_response["answer"].strip() in ["", "."]:
-                break
-
-            no_reply_count += 1
-
-            if no_reply_count == 3:
-                generated_response["answer"] = "I'm sorry, I don't understand."
-                break
-
-        formatted_generated_response = {
-            "query": generated_response["input"],
-            "result": generated_response["answer"],
-            "source_documents": generated_response["context"],
-        }
-
-        return formatted_generated_response
+        self.formatted_output["answer"] = acc_answer
 
     def run_app(self) -> None:
         """
@@ -105,17 +108,18 @@ class Chat(Base):
 
         if prompt := st.chat_input():
 
-            st.chat_message("user").write(prompt)
+            with st.chat_message("user"):
+                st.write(prompt)
 
-            with st.spinner("Generating response . . . "):
-                generated_response = self.call(
-                    prompt,
-                    st.session_state["chat_history"],
+            with st.chat_message("assistant"):
+                st.write_stream(
+                    self.stream(
+                        prompt,
+                        st.session_state["chat_history"],
+                    )
                 )
-
-            st.chat_message("assistant").write(generated_response["result"])
 
             st.session_state["chat_history"].append(("human", prompt))
             st.session_state["chat_history"].append(
-                ("ai", generated_response["result"])
+                ("ai", self.formatted_output["answer"])
             )
