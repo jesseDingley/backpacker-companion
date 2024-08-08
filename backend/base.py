@@ -14,5 +14,6 @@ class Base:
         self.path_guide_urls = os.path.join(CST.PATH_DATA, f"{CST.URLS}.txt")
         self.path_history = os.path.join(CST.PATH_DATA, f"{CST.HISTORY}.txt")
         self.path_vectordb = os.path.join(CST.PATH_DATA, CST.VECTORDB)
+        self.path_title_image = os.path.join(CST.PATH_IMAGES, f"{CST.TITLE_IMAGE}.png")
 
         self.embeddings = HuggingFaceEmbeddings(model_name=CST.EMBEDDING_MODEL)

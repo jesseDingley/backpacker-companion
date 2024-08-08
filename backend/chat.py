@@ -63,6 +63,24 @@ class Chat(Base):
 
         self.formatted_output = None
 
+    @staticmethod
+    def write_human_msg(msg: str) -> None:
+        """
+        Writes human message to Streamlit app
+
+        Args:
+            msg (str): message to write
+        """
+        st.write(
+            f"""
+                <div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: {CST.MESSAGE_ALIGNMENT};">
+                    <div style="background: {CST.MESSAGE_BG_COLOR}; color: white; border-radius: 15px; padding: 10px; margin-right: 5px; max-width: 75%; font-size: 14px;">
+                        {msg} \n </div>
+                </div>
+                """,
+            unsafe_allow_html=True,
+        )
+
     def stream(self, query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
         """
         Streams LLM response given a query and chat history.
@@ -97,19 +115,26 @@ class Chat(Base):
         """
         Run streamlit app
         """
-        st.title("Backpacker Companion")
-        st.caption("Description")
+        st.image(self.path_title_image, width=100)
+        st.title(CST.NAME)
+        st.caption(
+            f"{CST.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
+        )
 
         if not "chat_history" in st.session_state:
-            st.session_state["chat_history"] = [("ai", "How can I help you?")]
+            st.session_state["chat_history"] = [
+                ("ai", f"Hey there! {CST.NAME} here, how can I help?")
+            ]
 
         for role, msg in st.session_state["chat_history"]:
-            st.chat_message(role).write(msg)
+            if role == "human":
+                Chat.write_human_msg(msg)
+            else:
+                st.chat_message(role).write(msg)
 
         if prompt := st.chat_input():
 
-            with st.chat_message("user"):
-                st.write(prompt)
+            Chat.write_human_msg(prompt)
 
             with st.chat_message("assistant"):
                 st.write_stream(
