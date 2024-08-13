@@ -45,7 +45,7 @@ class GuideURLLoader(NewsURLLoader):
             str: cleaned page content
         """
         cleaned_page_content = re.sub(r"\n\n(Image|Photo):.+\n\n", "\n\n", page_content)
-        return cleaned_page_content.split("\n\nMade it this far?")[0]
+        return unidecode(cleaned_page_content.split("\n\nMade it this far?")[0])
 
     @staticmethod
     def get_headers_from_html(html_content: str) -> Dict[str, List[str]]:

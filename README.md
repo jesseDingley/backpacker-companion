@@ -11,7 +11,4 @@ streamlit run app.py
 
 ## Improvements
 
-- Deal with lists in the HTML content
-- \n\n potential issue for header 2 tags in regex
-- Deal with URL timeouts
-- Add argument parser to core.py
+- do retrieval based on keywords from query? (rm stopwords)

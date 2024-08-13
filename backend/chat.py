@@ -5,12 +5,15 @@ from typing import List, Tuple, Dict, Iterator
 from backend.base import Base
 from backend.const import CST
 from backend.prompts import Prompts
+from backend.retriever import Retriever
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain_chroma import Chroma
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors.flashrank_rerank import FlashrankRerank
 from huggingface_hub import login
 
 import streamlit as st
@@ -38,11 +41,13 @@ class Chat(Base):
         llm = HuggingFaceEndpoint(
             repo_id=CST.LLM,
             task="text-generation",
-            max_new_tokens=512,
+            max_new_tokens=1024,
             temperature=0.1,
             callbacks=callbacks,
             streaming=True,
         )
+
+        retriever = Retriever(vector_db=vectordb, k=4)
 
         prompts = Prompts()
 
@@ -53,7 +58,7 @@ class Chat(Base):
 
         history_aware_retriever = create_history_aware_retriever(
             llm=llm,
-            retriever=vectordb.as_retriever(),
+            retriever=retriever,
             prompt=prompts.rephrase_chat_prompt_template,
         )
 
@@ -111,7 +116,7 @@ class Chat(Base):
 
         self.formatted_output["answer"] = acc_answer
 
-    def run_app(self) -> None:
+    def run_app(self, debug=False) -> None:
         """
         Run streamlit app
         """
@@ -148,3 +153,10 @@ class Chat(Base):
             st.session_state["chat_history"].append(
                 ("ai", self.formatted_output["answer"])
             )
+
+            if debug:
+                print()
+                print("===========")
+                print(self.formatted_output)
+                print("=============")
+                print()

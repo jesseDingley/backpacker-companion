@@ -9,7 +9,7 @@ class GuideTextSplitter(RecursiveCharacterTextSplitter):
     def __init__(
         self,
         separators: List[str] | None = [
-            r"\n\n<h\d>.+</h\d>\n\n",
+            r"<h\d>.+</h\d>\n\n",
         ],
         keep_separator: bool = True,
         is_separator_regex: bool = True,
