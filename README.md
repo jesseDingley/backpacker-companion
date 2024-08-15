@@ -11,4 +11,4 @@ streamlit run app.py
 
 ## Improvements
 
-- do retrieval based on keywords from query? (rm stopwords)
+- additional llm step to check no ooc

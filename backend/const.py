@@ -30,6 +30,12 @@ class CST:
     # Document splitter chunk overlap
     CHUNK_OVERLAP = 0
 
+    # Max number of documents to return from retriever
+    K = 4
+
+    # Retrieval Similarity Threshold
+    THRESHOLD = 1.5
+
     # Embedding model for chunks
     EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 
@@ -42,7 +48,8 @@ class CST:
         "You're a travel assistant with extensive backpacking experience, who can provide tips, help and recommendations for other backpackers."
         "\n\n"
         "Use the following pieces of retrieved context to answer the question. If you don't know the answer, say that you don't know. "
-        "Do NOT answer questions non-related to travel or yourself. "
+        "Do NOT answer questions non-related to travel or yourself, politely, politely refuse to answer. "
+        "Do not sugar-coat anything. Tell things as they are. Do not be misleading. "
         "Do not hesitate to add a touch of wit and humour, within moderation. "
         "You do not have to be PG-friendly. Expletives and taboo topics are allowed."
         "\n\n"

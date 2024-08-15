@@ -12,8 +12,6 @@ from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHan
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors.flashrank_rerank import FlashrankRerank
 from huggingface_hub import login
 
 import streamlit as st
@@ -47,7 +45,7 @@ class Chat(Base):
             streaming=True,
         )
 
-        retriever = Retriever(vector_db=vectordb, k=4)
+        retriever = Retriever(vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD)
 
         prompts = Prompts()
 
@@ -67,6 +65,7 @@ class Chat(Base):
         )
 
         self.formatted_output = None
+        self.ai_msg_placeholder = None
 
     @staticmethod
     def write_human_msg(msg: str) -> None:
@@ -92,15 +91,16 @@ class Chat(Base):
 
         Args:
             query (str): user query
-            chat_history (List[Tuple[str, str]]): chat history like [("human": msg) -> ("ai": response) -> ...]
+            chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
 
         Returns:
             Iterable[str]: iterator on llm response chunks
         """
+        started_streaming = False
         self.formatted_output = {}
         acc_answer = ""
         for chunk in self.qa.stream(
-            input={"input": query + " AI: ", "chat_history": chat_history}
+            input={"input": query + " ASSISTANT: ", "chat_history": chat_history}
         ):
             if input_chunk := chunk.get("input"):
                 self.formatted_output["input"] = input_chunk
@@ -109,6 +109,9 @@ class Chat(Base):
                 self.formatted_output["context"] = context_chunk
 
             if answer_chunk := chunk.get("answer"):
+                if not started_streaming:
+                    started_streaming = True
+                    self.ai_msg_placeholder.empty()
                 if answer_chunk == "</s>":
                     break
                 acc_answer += answer_chunk
@@ -116,7 +119,7 @@ class Chat(Base):
 
         self.formatted_output["answer"] = acc_answer
 
-    def run_app(self, debug=False) -> None:
+    def run_app(self, debug=True) -> None:
         """
         Run streamlit app
         """
@@ -128,20 +131,26 @@ class Chat(Base):
 
         if not "chat_history" in st.session_state:
             st.session_state["chat_history"] = [
-                ("ai", f"Hey there! {CST.NAME} here, how can I help?")
+                ("assistant", f"Hey there! {CST.NAME} here, how can I help you?")
             ]
 
         for role, msg in st.session_state["chat_history"]:
-            if role == "human":
+            if role == "user":
                 Chat.write_human_msg(msg)
             else:
-                st.chat_message(role).write(msg)
+                with st.chat_message(role):
+                    st.empty()
+                    st.write(msg)
 
         if prompt := st.chat_input():
 
             Chat.write_human_msg(prompt)
 
             with st.chat_message("assistant"):
+
+                self.ai_msg_placeholder = st.empty()
+                self.ai_msg_placeholder.write("Hmm...")
+
                 st.write_stream(
                     self.stream(
                         prompt,
@@ -149,9 +158,9 @@ class Chat(Base):
                     )
                 )
 
-            st.session_state["chat_history"].append(("human", prompt))
+            st.session_state["chat_history"].append(("user", prompt))
             st.session_state["chat_history"].append(
-                ("ai", self.formatted_output["answer"])
+                ("assistant", self.formatted_output["answer"])
             )
 
             if debug:
