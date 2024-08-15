@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from typing import List, Tuple, Dict, Iterator
+import time
 
 from backend.base import Base
 from backend.const import CST
@@ -13,6 +14,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
 from huggingface_hub import login
+from PIL import Image
 
 import streamlit as st
 
@@ -63,6 +65,8 @@ class Chat(Base):
         self.qa = create_retrieval_chain(
             retriever=history_aware_retriever, combine_docs_chain=combine_docs_chain
         )
+
+        self.assistant_icon = Image.open(self.path_assistant_icon)
 
         self.formatted_output = None
         self.ai_msg_placeholder = None
@@ -117,6 +121,19 @@ class Chat(Base):
                 acc_answer += answer_chunk
                 yield answer_chunk
 
+        if "context" in self.formatted_output:
+            top_ranking_document = self.formatted_output["context"][0]
+            if top_ranking_document.metadata["score"] < 1.0:
+                url = top_ranking_document.metadata["link"]
+                title = top_ranking_document.metadata["title"]
+                context_text = f"\n\n For more information, check out [{title}]({url})"
+                for token in context_text.split(" "):
+                    time.sleep(0.02)
+                    yield " "
+                    time.sleep(0.02)
+                    yield token
+                self.formatted_output["source"] = context_text
+
         self.formatted_output["answer"] = acc_answer
 
     def run_app(self, debug=True) -> None:
@@ -134,19 +151,26 @@ class Chat(Base):
                 ("assistant", f"Hey there! {CST.NAME} here, how can I help you?")
             ]
 
-        for role, msg in st.session_state["chat_history"]:
+        if not "references" in st.session_state:
+            st.session_state["references"] = [""]
+
+        for role_msg_tuple, reference in zip(
+            st.session_state["chat_history"], st.session_state["references"]
+        ):
+            role = role_msg_tuple[0]
+            msg = role_msg_tuple[1]
             if role == "user":
                 Chat.write_human_msg(msg)
             else:
-                with st.chat_message(role):
+                with st.chat_message(role, avatar=self.assistant_icon):
                     st.empty()
-                    st.write(msg)
+                    st.write(msg + reference)
 
         if prompt := st.chat_input():
 
             Chat.write_human_msg(prompt)
 
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar=self.assistant_icon):
 
                 self.ai_msg_placeholder = st.empty()
                 self.ai_msg_placeholder.write("Hmm...")
@@ -162,6 +186,11 @@ class Chat(Base):
             st.session_state["chat_history"].append(
                 ("assistant", self.formatted_output["answer"])
             )
+            st.session_state["references"].append("")
+            if "source" in self.formatted_output:
+                st.session_state["references"].append(self.formatted_output["source"])
+            else:
+                st.session_state["references"].append("")
 
             if debug:
                 print()

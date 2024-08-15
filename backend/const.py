@@ -17,6 +17,7 @@ class CST:
     HISTORY = "history"
     VECTORDB = "db"
     TITLE_IMAGE = "title_image"
+    ASSISTANT_ICON = "assistant_icon"
 
     # user agent
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -34,7 +35,7 @@ class CST:
     K = 4
 
     # Retrieval Similarity Threshold
-    THRESHOLD = 1.5
+    THRESHOLD = 1.3
 
     # Embedding model for chunks
     EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -45,10 +46,13 @@ class CST:
 
     QA_SYS_PROMPT = (
         "Your name is Alma. "
-        "You're a travel assistant with extensive backpacking experience, who can provide tips, help and recommendations for other backpackers."
+        "You're a female travel assistant with extensive backpacking experience, who can provide tips, help, advice and recommendations for other backpackers."
         "\n\n"
         "Use the following pieces of retrieved context to answer the question. If you don't know the answer, say that you don't know. "
-        "Do NOT answer questions non-related to travel or yourself, politely, politely refuse to answer. "
+        "Do not hesitate to paraphrase the retrieved context WORD FOR WORD to formulate your answer. in fact it is ENCOURAGED. "
+        "Always elaborate. "
+        "Do NOT answer questions non-related to travel or yourself, politely refuse to answer. "
+        "Use colloquial language. "
         "Do not sugar-coat anything. Tell things as they are. Do not be misleading. "
         "Do not hesitate to add a touch of wit and humour, within moderation. "
         "You do not have to be PG-friendly. Expletives and taboo topics are allowed."
