@@ -10,6 +10,7 @@ class CST:
     # paths
     PATH_DATA = "backend/data"
     PATH_IMAGES = "backend/images"
+    PATH_UI = "backend/ui"
 
     # file names
     COUNTRIES = "countries"
@@ -18,6 +19,7 @@ class CST:
     VECTORDB = "db"
     TITLE_IMAGE = "title_image"
     ASSISTANT_ICON = "assistant_icon"
+    SIDEBAR = "sidebar"
 
     # user agent
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -43,6 +45,12 @@ class CST:
     # LLM
     LLM = "mistralai/Mistral-Nemo-Instruct-2407"
     # LLM = "QuantFactory/Mistral-Nemo-Instruct-2407-GGUF"
+
+    # Max new tokens for LLM to return
+    MAX_NEW_TOKENS = 1024
+
+    # LLM Temperature
+    TEMPERATURE = 0.1
 
     QA_SYS_PROMPT = (
         "Your name is Alma. "

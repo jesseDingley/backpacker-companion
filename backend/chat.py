@@ -41,8 +41,8 @@ class Chat(Base):
         llm = HuggingFaceEndpoint(
             repo_id=CST.LLM,
             task="text-generation",
-            max_new_tokens=1024,
-            temperature=0.1,
+            max_new_tokens=CST.MAX_NEW_TOKENS,
+            temperature=CST.TEMPERATURE,
             callbacks=callbacks,
             streaming=True,
         )
@@ -67,6 +67,9 @@ class Chat(Base):
         )
 
         self.assistant_icon = Image.open(self.path_assistant_icon)
+
+        with open(self.path_sidebar_md, "r") as f:
+            self.sidebar_content = f.read()
 
         self.formatted_output = None
         self.ai_msg_placeholder = None
@@ -123,14 +126,14 @@ class Chat(Base):
 
         if "context" in self.formatted_output:
             top_ranking_document = self.formatted_output["context"][0]
-            if top_ranking_document.metadata["score"] < 1.0:
+            if top_ranking_document.metadata["score"] < 0.8:
                 url = top_ranking_document.metadata["link"]
                 title = top_ranking_document.metadata["title"]
                 context_text = f"\n\n For more information, check out [{title}]({url})"
                 for token in context_text.split(" "):
-                    time.sleep(0.02)
+                    time.sleep(0.01)
                     yield " "
-                    time.sleep(0.02)
+                    time.sleep(0.01)
                     yield token
                 self.formatted_output["source"] = context_text
 
@@ -145,6 +148,12 @@ class Chat(Base):
         st.caption(
             f"{CST.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
         )
+
+        with st.sidebar:
+            if st.button("New Chat", use_container_width=True, type="primary"):
+                for key in st.session_state.keys():
+                    del st.session_state[key]
+            st.markdown(self.sidebar_content)
 
         if not "chat_history" in st.session_state:
             st.session_state["chat_history"] = [
@@ -168,6 +177,7 @@ class Chat(Base):
 
         if prompt := st.chat_input():
 
+            st.session_state["chat_history"].append(("user", prompt))
             Chat.write_human_msg(prompt)
 
             with st.chat_message("assistant", avatar=self.assistant_icon):
@@ -182,7 +192,6 @@ class Chat(Base):
                     )
                 )
 
-            st.session_state["chat_history"].append(("user", prompt))
             st.session_state["chat_history"].append(
                 ("assistant", self.formatted_output["answer"])
             )

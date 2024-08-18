@@ -11,4 +11,6 @@ streamlit run app.py
 
 ## Improvements
 
-- additional llm step to check no ooc
+- additional llm step to check no ooc (if no docs AND LLM extra step says OOC)
+- remove 'mate,'
+- limit chat history to N turns

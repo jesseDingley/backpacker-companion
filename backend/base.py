@@ -18,5 +18,6 @@ class Base:
         self.path_assistant_icon = os.path.join(
             CST.PATH_IMAGES, f"{CST.ASSISTANT_ICON}.png"
         )
+        self.path_sidebar_md = os.path.join(CST.PATH_UI, f"{CST.SIDEBAR}.md")
 
         self.embeddings = HuggingFaceEmbeddings(model_name=CST.EMBEDDING_MODEL)
