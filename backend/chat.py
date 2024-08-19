@@ -92,6 +92,20 @@ class Chat(Base):
             unsafe_allow_html=True,
         )
 
+    def is_query_off_topic(self, query: str, chat_history: List[Tuple[str, str]]) -> bool:
+        """
+        Determines whether user query is off topic.
+
+        Args:
+            query (str): user query
+            chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
+
+        Returns:
+            bool: True if off topic.        
+        """
+        
+
+
     def stream(self, query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
         """
         Streams LLM response given a query and chat history.

@@ -80,6 +80,13 @@ class CST:
         "just reformulate it if needed and otherwise return it as is."
     )
 
+    OFF_TOPIC_SYS_PROMPT = (
+        "Given a chat history and the latest user question, "
+        "determine whether the question is entirely off-topic from travel, backpacking, and adventure. "
+        "Give a simple 'yes' (is off-topic) or 'no' (is not off-topic). "
+        "Note that questions about yourself are not considered off-topic. "
+    )
+
     # UI CSS
     MESSAGE_ALIGNMENT = "flex-end"
     MESSAGE_BG_COLOR = "linear-gradient(135deg, #00B2FF 0%, #006AFF 100%)"
