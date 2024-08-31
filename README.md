@@ -4,7 +4,18 @@ RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
 
 ## Run it locally
 
+1. 
+
 ```sh
+cp .dist.env .env
+```
+
+and fill-in with your API keys.
+
+2. 
+
+```sh
+git lfs pull
 pip install -e .
 streamlit run app.py
 ```

@@ -92,7 +92,9 @@ class Chat(Base):
             unsafe_allow_html=True,
         )
 
-    def is_query_off_topic(self, query: str, chat_history: List[Tuple[str, str]]) -> bool:
+    def is_query_off_topic(
+        self, query: str, chat_history: List[Tuple[str, str]]
+    ) -> bool:
         """
         Determines whether user query is off topic.
 
@@ -101,10 +103,8 @@ class Chat(Base):
             chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
 
         Returns:
-            bool: True if off topic.        
+            bool: True if off topic.
         """
-        
-
 
     def stream(self, query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
         """
