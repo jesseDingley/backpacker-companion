@@ -124,9 +124,12 @@ class Chat(Base):
 
         raise ValueError("Invalid JSON.")
 
-    def stream_refusal_message(self):
+    def stream_refusal_message(self) -> Iterator[str]:
         """
         Streams refusal response after a user query that is off topic.
+
+        Returns:
+            Iterator[str]: iterator on refusal message.
         """
         started_streaming = False
         self.formatted_output = {}
