@@ -84,8 +84,13 @@ class CST:
         "Given a chat history and the latest user question, "
         "determine whether the question is entirely off-topic from travel, backpacking, and adventure. "
         "Give a simple 'yes' (is off-topic) or 'no' (is not off-topic). "
-        "Note that questions about yourself are not considered off-topic. "
+        "Note that questions about yourself are not considered off-topic."
+        "\n\n"
+        "{format_instructions}"
+        "\n"
     )
+
+    REFUSAL_MESSAGE = "Whoah buddy, I'm sorry, I cannot help you with that... "
 
     # UI CSS
     MESSAGE_ALIGNMENT = "flex-end"

@@ -7,6 +7,7 @@ from backend.base import Base
 from backend.const import CST
 from backend.prompts import Prompts
 from backend.retriever import Retriever
+from backend.parsers import Parsers
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain_chroma import Chroma
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
@@ -66,6 +67,12 @@ class Chat(Base):
             retriever=history_aware_retriever, combine_docs_chain=combine_docs_chain
         )
 
+        self.off_topic_verification_chain = (
+            prompts.off_topic_verification_prompt_template
+            | llm
+            | Parsers.off_topic_verification_parser
+        )
+
         self.assistant_icon = Image.open(self.path_assistant_icon)
 
         with open(self.path_sidebar_md, "r") as f:
@@ -105,6 +112,33 @@ class Chat(Base):
         Returns:
             bool: True if off topic.
         """
+        output_json = self.off_topic_verification_chain.invoke(
+            {"input": query + " JSON: ", "chat_history": chat_history}
+        )
+
+        if output_json["is_off_topic"].lower().strip() == "yes":
+            return True
+
+        if output_json["is_off_topic"].lower().strip() == "no":
+            return False
+
+        raise ValueError("Invalid JSON.")
+
+    def stream_refusal_message(self):
+        """
+        Streams refusal response after a user query that is off topic.
+        """
+        started_streaming = False
+        self.formatted_output = {}
+        refusal_message = CST.REFUSAL_MESSAGE
+        for word in refusal_message.split(" "):
+            if not started_streaming:
+                started_streaming = True
+                self.ai_msg_placeholder.empty()
+            yield word + " "
+            time.sleep(0.02)
+
+        self.formatted_output["answer"] = refusal_message
 
     def stream(self, query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
         """
@@ -199,12 +233,20 @@ class Chat(Base):
                 self.ai_msg_placeholder = st.empty()
                 self.ai_msg_placeholder.write("Hmm...")
 
-                st.write_stream(
-                    self.stream(
-                        prompt,
-                        st.session_state["chat_history"],
+                if not self.is_query_off_topic(
+                    prompt, st.session_state["chat_history"]
+                ):
+
+                    st.write_stream(
+                        self.stream(
+                            prompt,
+                            st.session_state["chat_history"],
+                        )
                     )
-                )
+
+                else:
+
+                    st.write_stream(self.stream_refusal_message())
 
             st.session_state["chat_history"].append(
                 ("assistant", self.formatted_output["answer"])
