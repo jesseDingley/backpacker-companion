@@ -5,8 +5,8 @@ import re
 import shutil
 from tqdm import tqdm
 from datetime import datetime
-from backend.loader import GuideURLLoader
-from backend.splitter import GuideTextSplitter
+from backend.components.loader import GuideURLLoader
+from backend.components.splitter import GuideTextSplitter
 from backend.const import CST
 from backend.base import Base
 from langchain_chroma import Chroma

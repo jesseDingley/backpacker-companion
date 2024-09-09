@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from backend.const import CST
-from backend.parsers import Parsers
+from backend.components.parsers import Parsers
 
 
 class Prompts:

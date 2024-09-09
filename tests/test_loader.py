@@ -1,4 +1,4 @@
-from backend.loader import GuideURLLoader
+from backend.components.loader import GuideURLLoader
 
 test_guide_url_loader = GuideURLLoader(urls=[])
 
