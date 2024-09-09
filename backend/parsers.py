@@ -12,6 +12,10 @@ class IsOffTopic(BaseModel):
         description="'yes' or 'no' to whether the user question is off topic or not. "
     )
 
+    refusal_message: str = Field(
+        description="A message of refusal to answer the user question (leave blank if the user question is not off topic)."
+    )
+
 
 class Parsers:
     """

@@ -22,6 +22,7 @@ streamlit run app.py
 
 ## Improvements
 
-- additional llm step to check no ooc (if no docs AND LLM extra step says OOC)
-- remove 'mate,'
 - limit chat history to N turns
+- prevent repetition at the end of a LLM turn.
+- prevent the refusal message from repeating turn after turn.
+- return multiple sources if < seuil 

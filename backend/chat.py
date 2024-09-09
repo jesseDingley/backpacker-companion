@@ -2,6 +2,8 @@ import os
 from dotenv import load_dotenv
 from typing import List, Tuple, Dict, Iterator
 import time
+import re
+import random
 
 from backend.base import Base
 from backend.const import CST
@@ -46,6 +48,7 @@ class Chat(Base):
             temperature=CST.TEMPERATURE,
             callbacks=callbacks,
             streaming=True,
+            stop_sequences=["<unk>", "</s>", "}"],
         )
 
         retriever = Retriever(vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD)
@@ -99,9 +102,38 @@ class Chat(Base):
             unsafe_allow_html=True,
         )
 
+    @staticmethod
+    def diversify_vocabulary(current_chunk: str) -> str:
+        """
+        Mixes up the vocabulary for overused terms like 'bloody', 'mate'
+
+        Args:
+            current_chunk (str): current chunk
+
+        Returns:
+            str: possible other word / chunk
+        """
+        if current_chunk == " mate":
+            return random.choice(
+                [" mate", " my friend", " bud", " amigo", " pal", " ", " partner"]
+            )
+        if current_chunk == " bloody":
+            return random.choice(
+                [
+                    " bloody",
+                    " fucking",
+                    " absolutely",
+                    " damn",
+                    " just",
+                    " hella",
+                    " totally",
+                ]
+            )
+        return current_chunk
+
     def is_query_off_topic(
-        self, query: str, chat_history: List[Tuple[str, str]]
-    ) -> bool:
+        self, query: str, chat_history: List[Tuple[str, str]], acc: int = 0
+    ) -> str:
         """
         Determines whether user query is off topic.
 
@@ -110,30 +142,41 @@ class Chat(Base):
             chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
 
         Returns:
-            bool: True if off topic.
+            str: Refusal message if off topic.
         """
-        output_json = self.off_topic_verification_chain.invoke(
-            {"input": query + " JSON: ", "chat_history": chat_history}
-        )
 
-        if output_json["is_off_topic"].lower().strip() == "yes":
-            return True
+        try:
 
-        if output_json["is_off_topic"].lower().strip() == "no":
-            return False
+            output_json = self.off_topic_verification_chain.invoke(
+                {"input": query + " JSON: ", "chat_history": chat_history}
+            )
 
-        raise ValueError("Invalid JSON.")
+            if output_json["is_off_topic"].lower().strip() == "yes":
+                return output_json["refusal_message"]
 
-    def stream_refusal_message(self) -> Iterator[str]:
+            if output_json["is_off_topic"].lower().strip() == "no":
+                return None
+
+            raise ValueError("Invalid JSON.")
+
+        except:
+
+            if acc == 3:
+                return None
+            return self.is_query_off_topic(query, chat_history, acc + 1)
+
+    def stream_refusal_message(self, refusal_message: str) -> Iterator[str]:
         """
         Streams refusal response after a user query that is off topic.
+
+        Args:
+            refusal_message (str): refusal message
 
         Returns:
             Iterator[str]: iterator on refusal message.
         """
         started_streaming = False
         self.formatted_output = {}
-        refusal_message = CST.REFUSAL_MESSAGE
         for word in refusal_message.split(" "):
             if not started_streaming:
                 started_streaming = True
@@ -155,6 +198,7 @@ class Chat(Base):
             Iterable[str]: iterator on llm response chunks
         """
         started_streaming = False
+        starts_with_ai = False
         self.formatted_output = {}
         acc_answer = ""
         for chunk in self.qa.stream(
@@ -167,11 +211,29 @@ class Chat(Base):
                 self.formatted_output["context"] = context_chunk
 
             if answer_chunk := chunk.get("answer"):
+
                 if not started_streaming:
+
+                    # remove "AI: " from start of generation
+                    if answer_chunk.strip() in ["", "\n"]:
+                        continue
+                    if answer_chunk.strip() == "AI":
+                        starts_with_ai = True
+                        continue
+                    if starts_with_ai and answer_chunk.strip() == ":":
+                        starts_with_ai = False
+                        continue
+
                     started_streaming = True
                     self.ai_msg_placeholder.empty()
+
+                # end stream
                 if answer_chunk == "</s>":
                     break
+
+                # diversify vocab
+                answer_chunk = Chat.diversify_vocabulary(answer_chunk)
+
                 acc_answer += answer_chunk
                 yield answer_chunk
 
@@ -236,9 +298,18 @@ class Chat(Base):
                 self.ai_msg_placeholder = st.empty()
                 self.ai_msg_placeholder.write("Hmm...")
 
-                if not self.is_query_off_topic(
+                refusal_message = self.is_query_off_topic(
                     prompt, st.session_state["chat_history"]
-                ):
+                )
+
+                if debug:
+                    print("\nSTART\n")
+
+                if refusal_message is not None:
+
+                    st.write_stream(self.stream_refusal_message(refusal_message))
+
+                else:
 
                     st.write_stream(
                         self.stream(
@@ -246,10 +317,6 @@ class Chat(Base):
                             st.session_state["chat_history"],
                         )
                     )
-
-                else:
-
-                    st.write_stream(self.stream_refusal_message())
 
             st.session_state["chat_history"].append(
                 ("assistant", self.formatted_output["answer"])

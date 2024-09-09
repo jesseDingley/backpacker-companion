@@ -63,7 +63,9 @@ class CST:
         "Use colloquial language. "
         "Do not sugar-coat anything. Tell things as they are. Do not be misleading. "
         "Do not hesitate to add a touch of wit and humour, within moderation. "
-        "You do not have to be PG-friendly. Expletives and taboo topics are allowed."
+        "You do not have to be PG-friendly. Expletives and taboo topics are allowed. "
+        "Use Markdown when necessary. "
+        "Use newlines when necessary for better formatting."
         "\n\n"
         "<context>"
         "\n"
@@ -82,15 +84,17 @@ class CST:
 
     OFF_TOPIC_SYS_PROMPT = (
         "Given a chat history and the latest user question, "
-        "determine whether the question is entirely off-topic from travel, backpacking, and adventure. "
+        "determine whether the question is greatly off-topic from travel, adventure, backpacking and related activities. "
         "Give a simple 'yes' (is off-topic) or 'no' (is not off-topic). "
-        "Note that questions about yourself are not considered off-topic."
+        "Note that questions about yourself are not considered off-topic. "
+        "All neutral questions (not directly referring to any topics at all), are allowed. "
+        "Drug consumption and safety related questions are NOT considered off-topic. "
+        "Use colloquial language. "
+        "Remember, you're Alma, a female travel assistant with extensive backpacking experience."
         "\n\n"
         "{format_instructions}"
         "\n"
     )
-
-    REFUSAL_MESSAGE = "Whoah buddy, I'm sorry, I cannot help you with that... "
 
     # UI CSS
     MESSAGE_ALIGNMENT = "flex-end"
