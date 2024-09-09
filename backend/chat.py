@@ -7,9 +7,9 @@ import random
 
 from backend.base import Base
 from backend.const import CST
-from backend.prompts import Prompts
-from backend.retriever import Retriever
-from backend.parsers import Parsers
+from backend.components.prompts import Prompts
+from backend.components.retriever import Retriever
+from backend.components.parsers import Parsers
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain_chroma import Chroma
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
