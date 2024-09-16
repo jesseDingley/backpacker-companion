@@ -201,6 +201,7 @@ class Chat(Base):
         starts_with_ai = False
         self.formatted_output = {}
         acc_answer = ""
+        debug_answer = ""
         for chunk in self.qa.stream(
             input={"input": query + " ASSISTANT: ", "chat_history": chat_history}
         ):
@@ -211,6 +212,8 @@ class Chat(Base):
                 self.formatted_output["context"] = context_chunk
 
             if answer_chunk := chunk.get("answer"):
+
+                debug_answer += answer_chunk
 
                 if not started_streaming:
 
@@ -227,15 +230,17 @@ class Chat(Base):
                     started_streaming = True
                     self.ai_msg_placeholder.empty()
 
-                # end stream
-                if answer_chunk == "</s>":
-                    break
 
                 # diversify vocab
                 answer_chunk = Chat.diversify_vocabulary(answer_chunk)
 
                 acc_answer += answer_chunk
                 yield answer_chunk
+
+        print("DEBUG BEGIN")
+        print(debug_answer)
+        print("DEBUG END")
+        print()
 
         if "context" in self.formatted_output:
             top_ranking_document = self.formatted_output["context"][0]
@@ -328,8 +333,9 @@ class Chat(Base):
                 st.session_state["references"].append("")
 
             if debug:
-                print()
-                print("===========")
-                print(self.formatted_output)
-                print("=============")
-                print()
+                pass
+                #print()
+                #print("===========")
+                #print(self.formatted_output)
+                #print("=============")
+                #print()

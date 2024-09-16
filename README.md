@@ -26,3 +26,4 @@ streamlit run app.py
 - prevent repetition at the end of a LLM turn.
 - prevent the refusal message from repeating turn after turn.
 - return multiple sources if < seuil 
+- streaming is ran TWICE??????
