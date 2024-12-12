@@ -72,14 +72,33 @@ class CST:
         "{context}"
         "\n"
         "</context>"
+        "\n\n"
+        "{chat_history}\n"
+        "User: {input}\n"
+        "Assistant: "
     )
 
-    REPHRASE_SYS_PROMPT = (
+    REPHRASE_SYS_PROMPT_v0 = (
         "Given a chat history and the latest user question "
         "which might reference context in the chat history, "
         "formulate a standalone question which can be understood "
-        "without the chat history. Do NOT answer the question, "
-        "just reformulate it if needed and otherwise return it as is."
+        "without the chat history. DO NOT answer the question under ANY circumstance, "
+        "just reformulate it if needed, and otherwise return it as is."
+    )
+
+    REPHRASE_SYS_PROMPT = (
+        "Your task is to reformulate the latest user input into a standalone question "
+        "or statement that can be understood without relying on the chat history. "
+        "Do NOT answer the input, provide commentary, or include any explanation. "
+        "Only reformulate it into a standalone version if necessary. "
+        "If the input is already standalone, return it as is. "
+        "\n\nFor example:\n"
+        "  - Input: 'What about flights?'\n"
+        "  - Reformulated: 'What are the prices of flights to Thailand?'\n\n"
+        "Chat History:\n\n"
+        "{chat_history}\n\n"
+        "Latest user input: '{input}'.\n\n"
+        "Reformulated user input: "
     )
 
     OFF_TOPIC_SYS_PROMPT = (
@@ -93,7 +112,10 @@ class CST:
         "Remember, you're Alma, a female travel assistant with extensive backpacking experience."
         "\n\n"
         "{format_instructions}"
-        "\n"
+        "\n\n"
+        "Chat History:\n\n"
+        "{chat_history}\n\n"
+        "Latest user input: '{input}'"
     )
 
     # UI CSS

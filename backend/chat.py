@@ -130,6 +130,25 @@ class Chat(Base):
                 ]
             )
         return current_chunk
+    
+    @staticmethod
+    def format_chat_history(chat_history: List[Tuple[str, str]]) -> str:
+        """Formats chat history into a string for prompt templates.
+        
+        Example result:
+            "Assistant: Hey there! Alma here, how can I help you?
+            User: How expensive is Thailand to travel to?
+            Assistant: Thailand is a backpacker's dream! It's cheap as chips."
+
+        Args:
+            chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
+
+        Returns:
+            str: formatted chat history.
+        """
+        return "\n".join(
+            f"{role.capitalize()}: {content}" for role, content in chat_history
+        )
 
     def is_query_off_topic(
         self, query: str, chat_history: List[Tuple[str, str]], acc: int = 0
@@ -202,7 +221,7 @@ class Chat(Base):
         self.formatted_output = {}
         acc_answer = ""
         for chunk in self.qa.stream(
-            input={"input": query + " ASSISTANT: ", "chat_history": chat_history}
+            input={"input": query, "chat_history": Chat.format_chat_history(chat_history)}
         ):
             if input_chunk := chunk.get("input"):
                 self.formatted_output["input"] = input_chunk
@@ -290,7 +309,6 @@ class Chat(Base):
 
         if prompt := st.chat_input():
 
-            st.session_state["chat_history"].append(("user", prompt))
             Chat.write_human_msg(prompt)
 
             with st.chat_message("assistant", avatar=self.assistant_icon):
@@ -318,6 +336,7 @@ class Chat(Base):
                         )
                     )
 
+            st.session_state["chat_history"].append(("user", prompt))
             st.session_state["chat_history"].append(
                 ("assistant", self.formatted_output["answer"])
             )

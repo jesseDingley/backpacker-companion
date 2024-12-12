@@ -4,6 +4,10 @@ RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
 
 ## Run it locally
 
+0. 
+
+Create a Python 3.11 virtual environment.
+
 1. 
 
 ```sh
