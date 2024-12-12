@@ -150,6 +150,19 @@ class Chat(Base):
             f"{role.capitalize()}: {content}" for role, content in chat_history
         )
 
+    @staticmethod
+    def esc_dollar_sign(current_chunk: str) -> str:
+        """
+        Escapes dollar sign to prevent bad formatting in markdown interface output.
+
+        Args:
+            current_chunk (str): current chunk
+
+        Returns:
+            str: formatted chunk
+        """
+        return current_chunk.replace("$", "\$")
+
     def is_query_off_topic(
         self, query: str, chat_history: List[Tuple[str, str]], acc: int = 0
     ) -> str:
@@ -252,6 +265,9 @@ class Chat(Base):
 
                 # diversify vocab
                 answer_chunk = Chat.diversify_vocabulary(answer_chunk)
+
+                # escape dollar sign for markdown
+                answer_chunk = Chat.esc_dollar_sign(answer_chunk)
 
                 acc_answer += answer_chunk
                 yield answer_chunk
