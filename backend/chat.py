@@ -161,7 +161,7 @@ class Chat(Base):
         Returns:
             str: formatted chunk
         """
-        return current_chunk.replace("$", "\$")
+        return re.sub(r"(?<!\\)\$", "\$", current_chunk)
 
     def is_query_off_topic(
         self, query: str, chat_history: List[Tuple[str, str]], acc: int = 0
