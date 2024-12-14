@@ -27,4 +27,6 @@ streamlit run app.py
 - limit chat history to N turns
 - prevent repetition at the end of a LLM turn.
 - prevent the refusal message from repeating turn after turn.
-- return multiple sources if < seuil 
+- return multiple sources if < seuil
+- retrieve only relevant chunks / fewer chunks
+- Use better LLM (instruct 3)
