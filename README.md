@@ -1,8 +1,6 @@
-# Backpacker Companion RAG Application
+# Branch for local dev
 
-RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
-
-## Run it locally
+## Run app locally
 
 0. 
 
