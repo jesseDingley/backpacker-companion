@@ -4,14 +4,8 @@ RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
 
 ## Run it locally
 
-```sh
-pip install -e .
-streamlit run app.py
-```
+See ["chat"](https://github.com/jesseDingley/backpacker-companion/tree/chat) branch
 
-## Improvements
+## Deployment 
 
-- Deal with lists in the HTML content
-- \n\n potential issue for header 2 tags in regex
-- Deal with URL timeouts
-- Add argument parser to core.py
+See ["deployment"](https://github.com/jesseDingley/backpacker-companion/tree/deploymeny) branch
