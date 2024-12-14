@@ -1,5 +1,3 @@
-import os
-from dotenv import load_dotenv
 from typing import List, Tuple, Dict, Iterator
 import time
 import re
@@ -29,15 +27,14 @@ class Chat(Base):
 
     def __init__(self) -> None:
         super().__init__()
-        load_dotenv()
-
-        assert os.path.exists(self.path_vectordb), "Vector DB not found."
 
         vectordb = Chroma(
-            persist_directory=self.path_vectordb, embedding_function=self.embeddings
+            client=self.chroma_client,
+            embedding_function=self.embeddings,
+            collection_name=CST.COLLECTION
         )
 
-        login(token=os.environ["HUGGINGFACE_API_KEY"])
+        login(token=st.secrets["HUGGINGFACE_API_KEY"])
 
         callbacks = [StreamingStdOutCallbackHandler()]
 

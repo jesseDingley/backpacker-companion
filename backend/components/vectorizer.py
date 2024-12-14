@@ -197,19 +197,28 @@ class Vectorizer(Base):
         texts = self.text_splitter.split_documents(docs)
         texts = filter_complex_metadata(texts)
 
-        if os.path.exists(self.path_vectordb):
-            shutil.rmtree(self.path_vectordb)
+        try:
+            self.chroma_client.delete_collection(
+                name=CST.COLLECTION
+            )
+        except:
+            pass
+        else:
+            pass
 
         Chroma.from_documents(
             documents=texts,
             embedding=self.embeddings,
-            persist_directory=self.path_vectordb,
+            collection_name=CST.COLLECTION,
+            client=self.chroma_client,
         )
 
     def update_vector_db(self) -> None:
         """
         Updates Vector DB with content from new URLs
         """
+        raise Exception("update_vector_db() needs to be updated to use chroma client")
+        #TODO: update
 
         # load all urls
         with open(self.path_guide_urls, "r", encoding="utf8") as f:
