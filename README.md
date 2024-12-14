@@ -1,32 +1,8 @@
-# Backpacker Companion RAG Application
+# Branch for Deployment
 
-RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
+[Streamlit link](https://backpacker-companion.streamlit.app)
 
-## Run it locally
 
-0. 
+## Deployment notes
 
-Create a Python 3.11 virtual environment.
-
-1. 
-
-```sh
-cp .dist.env .env
-```
-
-and fill-in with your API keys.
-
-2. 
-
-```sh
-git lfs pull
-pip install -e .
-streamlit run app.py
-```
-
-## Improvements
-
-- limit chat history to N turns
-- prevent repetition at the end of a LLM turn.
-- prevent the refusal message from repeating turn after turn.
-- return multiple sources if < seuil 
+- Chroma vectorstore is deployed to a gcloud vm. See [here](https://docs.trychroma.com/deployment/gcp) for more info.
