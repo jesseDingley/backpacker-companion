@@ -30,4 +30,5 @@ streamlit run app.py
 - return multiple sources if < seuil
 - retrieve only relevant chunks / fewer chunks
 - Use better LLM (instruct 3)
-- Investigate whether sys prompt needs to be passed each time 
+- Investigate whether sys prompt needs to be passed each time
+- Expand Knowledge Base w/ SiteMap
