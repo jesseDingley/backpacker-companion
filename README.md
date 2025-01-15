@@ -1,5 +1,10 @@
 # Branch for local dev
 
+This branch is purely for running small experiments.
+
+The vectorstore used in this branch is produced from roughly 70 blogs and is stored in Git LFS.
+
+
 ## Run app locally
 
 0. 
