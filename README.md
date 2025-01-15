@@ -2,10 +2,10 @@
 
 RAG Application for [thebrokebackpacker.com](https://thebrokebackpacker.com)
 
-## Run it locally
+## > Simple working version that runs locally 
 
-See ["chat"](https://github.com/jesseDingley/backpacker-companion/tree/chat) branch
+See ["local"](https://github.com/jesseDingley/backpacker-companion/tree/local) branch
 
-## Deployment 
+## > Deployed version
 
 See ["deployment"](https://github.com/jesseDingley/backpacker-companion/tree/deploymeny) branch
