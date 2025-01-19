@@ -1,7 +1,6 @@
 import os
 import sys
 from dotenv import load_dotenv
-from backend.core import run
 
 def is_production_env() -> bool:
     """Returns True is we are in a production env."""
@@ -17,6 +16,7 @@ def main() -> None:
     """Main."""
     if is_production_env():
         sqlite_setup()
+    from backend.core import run
     run()
 
 if __name__ == "__main__":
