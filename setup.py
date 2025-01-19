@@ -1,11 +1,11 @@
 from setuptools import setup, find_packages
 
-with open("requirements.txt") as f:
+with open("requirements-dev.txt") as f:
     reqs = f.read().splitlines()
 
 setup(
     name="backpacker-companion",
-    version="0.1",
+    version="0.2",
     packages=find_packages(),
     entry_points={
         "console_scripts": [

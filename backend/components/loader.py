@@ -5,11 +5,12 @@ from langchain_community.document_loaders import NewsURLLoader
 from langchain_core.documents import Document
 from bs4 import BeautifulSoup
 from unidecode import unidecode
+import logging
 
 
-class GuideURLLoader(NewsURLLoader):
+class PostURLLoader(NewsURLLoader):
     """
-    Custom Document loader for Guide URLs.
+    Custom Document loader for Post URLs.
     """
 
     def __init__(
@@ -62,12 +63,18 @@ class GuideURLLoader(NewsURLLoader):
         soup = BeautifulSoup(html_content, features="lxml")
 
         headers_dict = {}
-        for header_type in ["h2", "h3"]:
+        header_types = ["h2", "h3", "h4"]
+        warning_count = 0
+        for header_type in header_types:
             headers_dict[header_type] = [
                 unidecode(header.text)
                 for header in soup.find_all(header_type, class_="wp-block-heading")
             ]
-            assert len(headers_dict[header_type]) > 0
+            if headers_dict[header_type] == []:
+                warning_count += 1
+
+        if warning_count == len(header_types):
+            return {}
 
         return headers_dict
 
@@ -109,11 +116,14 @@ class GuideURLLoader(NewsURLLoader):
                 warnings.warn(f"Document {doc.link} is empty!")
             else:
 
-                doc.page_content = GuideURLLoader.clean_page_content(doc.page_content)
+                doc.page_content = PostURLLoader.clean_page_content(doc.page_content)
+                
+                doc_headers = PostURLLoader.get_headers_from_html(raw_doc.page_content)
 
-                doc_headers = GuideURLLoader.get_headers_from_html(raw_doc.page_content)
+                if doc_headers == {}:
+                    logging.warning(f"NO HEADERS IN POST: {raw_doc.metadata}")
 
-                doc.page_content = GuideURLLoader.tag_page_content(
+                doc.page_content = PostURLLoader.tag_page_content(
                     page_content=doc.page_content, page_headers=doc_headers
                 )
 

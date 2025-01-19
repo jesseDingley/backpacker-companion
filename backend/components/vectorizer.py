@@ -1,46 +1,35 @@
 from typing import List
 import requests
 import os
-import re
-import shutil
+import logging
+from time import time
 from tqdm import tqdm
-from datetime import datetime
-from backend.components.loader import GuideURLLoader
-from backend.components.splitter import GuideTextSplitter
+from backend.components.loader import PostURLLoader
+from backend.components.splitter import PostTextSplitter
 from backend.const import CST
 from backend.base import Base
 from langchain_chroma import Chroma
 from langchain_community.vectorstores.utils import filter_complex_metadata
-from langchain_huggingface import HuggingFaceEmbeddings
 from newspaper import Config
-
+from bs4 import BeautifulSoup
 
 class Vectorizer(Base):
     """
-    Class to scrape, chunk and vectorize Broke Backpacker website.
+    Class to scrape, chunk and vectorize Broke Backpacker website 
+    into a Chroma vector store uploaded to a gcloud vm.
 
     Attributes
     ------------
-
-    base_url (str): brokebackpacker home page url
-    path_data (str): relative path to folder containing data
-    path_countries (str): relative path to txt of country names
-    path_guide_urls (str): relative path to txt of country travel guide urls
-    path_vector_db (str): relative path to vector db
-    url_structures (List[str]): possible name combinations for a travel guide url
     headers (dict): https request header
     newspaper_kwargs (dict): kwargs for document loader
-    text_splitter (GuideTextSplitter): custom text splitter
-    embeddings (HuggingFaceEmbeddings): embeddings model
+    text_splitter (PostTextSplitter): custom text splitter
 
 
     Methods
     ------------
-    normalize_country(country: str) -> str: Normalizes country name.
-    country_url_exists(country: str, urls: List[str]) -> bool: Determines if country is in one url from a list of urls.
-    collect_urls(self) -> None: Collect all URLs to scrape, i.e. every backpacking guide by country, and saves them to disk.
-    init_vector_db(self) -> None: Initializes Vector DB
-    update_vector_db(self) -> None: Updates Vector DB with content from new URLs
+    get_and_save_post_urls(self) -> None: Gets all post URLs from thebrokebackpacker sitemap, and saves them to backend/data/post_urls.txt
+    process_and_upload_batch(self, batch: List[str], i: int) -> None: Processes and uploads batch of post urls to vector db. 
+    init_vectordb(self) -> None: Initializes Vector DB.
     run(self, from_zero: bool) -> None: Runs vectorizer pipeline.
     run_from_zero(self) -> None: Runs the pipeline from zero.
     run_update(self) -> None: Runs the pipeline to update the existing vector db.
@@ -49,19 +38,6 @@ class Vectorizer(Base):
     def __init__(self) -> None:
         super().__init__()
 
-        self.url_structures = [
-            "backpacking-{country}-travel-guide",
-            "backpacking-{country}-budget-travel-guide",
-            "backpacking-{country}-ultimate-travel-guide",
-            "backpacking-{country}-ultimate-budget-travel-guide",
-            "backpacking-{country}-destination-guide",
-            "backpacking-{country}",
-            "backpacking-{country}-on-a-budget",
-            "backpacking-in-{country}",
-            "{country}-backpacking",
-            "is-{country}-worth-visiting",
-        ]
-
         self.headers = {"User-Agent": CST.USER_AGENT}
 
         newspaper_config = Config()
@@ -69,127 +45,74 @@ class Vectorizer(Base):
         newspaper_config.request_timeout = CST.REQUEST_TIMEOUT
         self.newspaper_kwargs = {"config": newspaper_config}
 
-        self.text_splitter = GuideTextSplitter(
+        self.text_splitter = PostTextSplitter(
             chunk_size=CST.CHUNK_SIZE,
             chunk_overlap=CST.CHUNK_OVERLAP,
             length_function=len,
         )
 
-    @staticmethod
-    def normalize_country(country: str) -> str:
+    def get_and_save_post_urls(self) -> None:
         """
-        Normalizes country name.
-
-        Example: "San Marino" -> "san-marino"
-
-        Args:
-            country (str): raw country
+        Gets all post URLs from thebrokebackpacker sitemap,
+        and saves them to backend/data/post_urls.txt
 
         Returns:
-            str: normalized country
+            List[str]: list of post urls.
         """
-        return country.strip().lower().replace(" ", "-").replace("&", "and")
 
-    @staticmethod
-    def country_url_exists(country: str, urls: List[str]) -> bool:
+        logging.info("Collecting Post URLs...")
+
+        urls = []
+
+        sitemap_url = os.path.join(CST.BASE_URL, "sitemap")
+
+        response = requests.get(url=sitemap_url, headers=self.headers)
+
+        if response.status_code == 200:
+
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            posts_ul = soup.find_all('ul', class_='sitemap-post')[0].find_all("li")
+
+            for post_li in posts_ul:
+
+                post_url = CST.BASE_URL + post_li.find("a").attrs["href"]
+
+                if not post_url in [
+                    "https://www.thebrokebackpacker.com/best-bivvy-bags/",
+                    "https://www.thebrokebackpacker.com/privacy-policy/",
+                    "https://www.thebrokebackpacker.com/barefoot-embrace-of-life-on-koh-lanta/",
+                    "https://www.thebrokebackpacker.com/freely-travel-insurance-review/",
+                ]:
+
+                    urls.append(post_url)
+
+            with open(self.path_post_urls, "w") as f:
+                f.write("\n".join(urls))
+
+            logging.info("Done.")
+
+        else:
+
+            raise Exception(f"Failed to load sitemap: {response.status_code}")
+    
+    def process_and_upload_batch(self, batch: List[str], i: int) -> None:
         """
-        Determines if country is in one url from a list of urls.
-
-        Example: "canada" IN [
-            "https://www.thebrokebackpacker.com/backpacking-canada-travel-guide",
-            "https://www.thebrokebackpacker.com/backpacking-chile-travel-guide"
-        ] -> TRUE
+        Processes and uploads batch of post urls to vector db. 
+        
+        i.e:
+            > Loads URL content
+            > Splits content into chunks
+            > Clean chunks
+            > Adds chunks to VectorDB
 
         Args:
-            country (str): country
-            urls (List[str]): list of urls
-
-        Returns:
-            bool: True if country is in one of the urls
-        """
-        if urls == []:
-            return False
-        return (
-            len(
-                [
-                    url
-                    for url in urls
-                    if (f"-{country}" in url) or (f"{country}-" in url)
-                ]
-            )
-            == 1
-        )
-
-    def collect_urls(self, reset: bool = False) -> None:
-        """
-        Collect all URLs to scrape, i.e. every backpacking guide by country,
-        and saves them to disk.
-
-        If guide_urls.txt already exists, only new urls will be appended
-
-        Args:
-            reset (bool): if True, deletes current guide url txt file
+            batch (List[str]): list of urls
+            i (int): batch index
         """
 
-        if reset and os.path.exists(self.path_guide_urls):
-            os.remove(self.path_guide_urls)
-
-        if reset and os.path.exists(self.path_history):
-            os.remove(self.path_history)
-
-        valid_urls = []
-
-        scraped_urls = []
-        if os.path.exists(self.path_guide_urls):
-            with open(self.path_guide_urls, "r", encoding="utf8") as f:
-                scraped_urls = [url.replace("\n", "").strip() for url in f.readlines()]
-
-        with open(self.path_countries, "r", encoding="utf8") as f:
-            countries = f.readlines()
-
-        normalized_countries = [
-            Vectorizer.normalize_country(country) for country in countries
-        ]
-
-        for country in tqdm(normalized_countries):
-
-            if Vectorizer.country_url_exists(country, scraped_urls):
-                continue
-
-            for struct in self.url_structures:
-
-                url_to_try = os.path.join(CST.BASE_URL, struct.format(country=country))
-
-                response = requests.get(url=url_to_try, headers=self.headers)
-
-                if response.status_code == 200:
-                    if "text/html" in response.headers.get("content-type"):
-                        valid_urls.append(url_to_try)
-                        break
-
-        write_mode = "w" if scraped_urls == [] else "a"
-
-        if valid_urls != []:
-            with open(self.path_guide_urls, write_mode) as f:
-                if write_mode == "a":
-                    now = datetime.now()
-                    now_formatted = now.strftime("%Y-%m-%d_%H:%M:%S")
-                    f.write(f"\n{now_formatted}\n")
-                f.write("\n".join(valid_urls))
-
-        if valid_urls == [] and write_mode == "w":
-            raise ValueError("No valid URLs found!")
-
-    def init_vector_db(self) -> None:
-        """
-        Initializes Vector DB.
-        """
-
-        with open(self.path_guide_urls, "r", encoding="utf8") as f:
-            guide_urls = [url.replace("\n", "").strip() for url in f.readlines()]
-
-        url_loader = GuideURLLoader(
-            urls=guide_urls, show_progress_bar=True, **self.newspaper_kwargs
+        url_loader = PostURLLoader(
+            urls=batch, show_progress_bar=True, **self.newspaper_kwargs
         )
 
         docs = url_loader.load()
@@ -197,86 +120,64 @@ class Vectorizer(Base):
         texts = self.text_splitter.split_documents(docs)
         texts = filter_complex_metadata(texts)
 
-        try:
-            self.chroma_client.delete_collection(
-                name=CST.COLLECTION
-            )
-        except:
-            pass
-        else:
-            pass
+        if i == 0:
+            
+            # DELETE EXISTING COLLECTION
 
-        Chroma.from_documents(
-            documents=texts,
-            embedding=self.embeddings,
+            try:
+                self.chroma_client.delete_collection(
+                    name=CST.COLLECTION
+                )
+                logging.info(f"Deleted existing collection {CST.COLLECTION}.")
+            except:
+                pass
+
+        # CREATE / ADD TO COLLECTION
+
+        collection = Chroma(
             collection_name=CST.COLLECTION,
             client=self.chroma_client,
+            embedding_function=self.embeddings,
+            create_collection_if_not_exists=True
         )
 
-    def update_vector_db(self) -> None:
-        """
-        Updates Vector DB with content from new URLs
-        """
-        raise Exception("update_vector_db() needs to be updated to use chroma client")
-        #TODO: update
+        if i == 0:
+            logging.info(f"Created collection {CST.COLLECTION}.")
 
-        # load all urls
-        with open(self.path_guide_urls, "r", encoding="utf8") as f:
-            guide_urls = [url.replace("\n", "").strip() for url in f.readlines()]
+        collection.add_documents(
+            documents=texts
+        )
 
-        # get dates of updates to url list
-        split_points = [
-            elt
-            for elt in guide_urls
-            if re.match(r"\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}", elt) is not None
+    def init_vectordb(self) -> None:
+        """
+        Initializes Vector DB.
+
+        More specifically, uploads documents in 
+        """
+        with open(self.path_post_urls, "r", encoding="utf8") as f:
+            post_urls = [
+                url.replace("\n", "").strip() for url in f.readlines()
+            ]
+
+        batches = [
+            post_urls[i:i + CST.BATCH_SIZE] for i in range(
+                0, 
+                len(post_urls), 
+                CST.BATCH_SIZE
+            )
         ]
 
-        # no new urls
-        if split_points == []:
-            return
+        num_batches = len(batches)
 
-        # load vectordb update history
-        if os.path.exists(self.path_history):
-            with open(self.path_history, "r", encoding="utf8") as f:
-                history = [line.replace("\n", "").strip() for line in f.readlines()]
+        logging.info("VectorDB creation initialized.")
 
-            # the new urls have already updated the vector db
-            if history[-1] == split_points[-1]:
-                return
-
-        # get new urls
-        split_index = [
-            i for i, elt in enumerate(guide_urls) if elt == split_points[-1]
-        ][0] + 1
-        new_urls = guide_urls[split_index:]
-
-        # create new docs
-
-        url_loader = GuideURLLoader(
-            urls=new_urls, show_progress_bar=True, **self.newspaper_kwargs
-        )
-
-        docs = url_loader.load()
-
-        texts = self.text_splitter.split_documents(docs)
-        texts = filter_complex_metadata(texts)
-
-        # load vector db
-        vectordb = Chroma(
-            persist_directory=self.path_vectordb, embedding_function=self.embeddings
-        )
-
-        # update vector db
-        vectordb.add_documents(texts)
-        del vectordb
-
-        # update history
-        if not os.path.exists(self.path_history):
-            with open(self.path_history, "w", encoding="utf8") as f:
-                f.write(split_points[-1])
-        else:
-            with open(self.path_history, "a", encoding="utf8") as f:
-                f.write(f"\n{split_points[-1]}")
+        for i, batch in enumerate(tqdm(batches)):
+            t0 = time()
+            self.process_and_upload_batch(batch, i)
+            t1 = time()
+            delta_t = t1 - t0
+            minutes, seconds = divmod(delta_t, 60)
+            logging.info(f"Processed and Uploaded Batch {i+1}/{num_batches} in {int(minutes)} min {int(seconds)} sec.")
 
     def run(self, from_zero: bool) -> None:
         """
@@ -286,14 +187,17 @@ class Vectorizer(Base):
         Setting from_zero to False will append new URLs and update existing Vector DB
 
         Args:
-            from_zero (bool): True to run from 0, False, to update
+            from_zero (bool): True to run from 0. False, to update
         """
         if from_zero:
-            self.collect_urls(reset=True)
-            self.init_vector_db()
+
+            logging.info("Creating VectorDB from scratch.")
+            self.get_and_save_post_urls()
+            self.init_vectordb()
+            logging.info("All batches uploaded and VectorDB successfully created.")
+
         else:
-            self.collect_urls()
-            self.update_vector_db()
+            logging.error("Cannot currently dynamically update VectorDB")
 
     def run_from_zero(self) -> None:
         """Runs the pipeline from zero."""

@@ -4,7 +4,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-class GuideTextSplitter(RecursiveCharacterTextSplitter):
+class PostTextSplitter(RecursiveCharacterTextSplitter):
 
     def __init__(
         self,
@@ -41,6 +41,6 @@ class GuideTextSplitter(RecursiveCharacterTextSplitter):
         documents = super().split_documents(documents)
 
         for doc in documents:
-            doc.page_content = GuideTextSplitter.remove_tags(doc.page_content)
+            doc.page_content = PostTextSplitter.remove_tags(doc.page_content)
 
         return documents

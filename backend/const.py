@@ -14,7 +14,7 @@ class CST:
 
     # file names
     COUNTRIES = "countries"
-    URLS = "guide_urls"
+    URLS = "post_urls"
     HISTORY = "history"
     VECTORDB = "db"
     TITLE_IMAGE = "title_image"
@@ -24,11 +24,11 @@ class CST:
     # chroma collection name
     COLLECTION = "broke-backpacker"
 
-    # Chroma server IP
-    CHROMA_IP = "34.22.255.219"
-
     # user agent
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+
+    # Batch size for VectorDB Creation (batches of 64 posts for example)
+    BATCH_SIZE = 32
 
     # request timeout for loading html content
     REQUEST_TIMEOUT = 15
