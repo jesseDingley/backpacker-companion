@@ -8,4 +8,4 @@ See ["local"](https://github.com/jesseDingley/backpacker-companion/tree/local) b
 
 ## > Deployed version
 
-See ["deployment"](https://github.com/jesseDingley/backpacker-companion/tree/deploymeny) branch
+See ["deployment"](https://github.com/jesseDingley/backpacker-companion/tree/deployment) branch
