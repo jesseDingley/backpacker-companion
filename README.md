@@ -26,6 +26,5 @@ chroma_ip = "<your-vm-ip-returned-by-terraform>"
 ## Room for improvement.
 
 - Return more sources both on screen and in the retriever.
-- Check what the retriever actually compares with the query. Just the page content or also title and description?
+- Config.yaml
 - Limit chat history
-- Check h4 isn't making too small chunks

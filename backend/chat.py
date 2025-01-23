@@ -1,4 +1,5 @@
-from typing import List, Tuple, Dict, Iterator
+from typing import List, Tuple, Iterator
+import logging
 import time
 import re
 import random
@@ -161,7 +162,7 @@ class Chat(Base):
         return re.sub(r"(?<!\\)\$", "\$", current_chunk)
 
     def is_query_off_topic(
-        self, query: str, chat_history: List[Tuple[str, str]], acc: int = 0
+        self, query: str, chat_history: List[Tuple[str, str]]
     ) -> str:
         """
         Determines whether user query is off topic.
@@ -174,25 +175,33 @@ class Chat(Base):
             str: Refusal message if off topic.
         """
 
-        try:
+        attempts = 0
 
-            output_json = self.off_topic_verification_chain.invoke(
-                {"input": query + " JSON: ", "chat_history": chat_history}
-            )
+        while attempts < 3:
 
-            if output_json["is_off_topic"].lower().strip() == "yes":
-                return output_json["refusal_message"]
+            try:
 
-            if output_json["is_off_topic"].lower().strip() == "no":
-                return None
+                output_json = self.off_topic_verification_chain.invoke(
+                    {"input": query + " JSON: ", "chat_history": chat_history}
+                )
 
-            raise ValueError("Invalid JSON.")
+                is_off_topic = output_json["is_off_topic"].lower().strip()
 
-        except:
+                if is_off_topic == "yes":
+                    return output_json["refusal_message"]
 
-            if acc == 3:
-                return None
-            return self.is_query_off_topic(query, chat_history, acc + 1)
+                if is_off_topic == "no":
+                    return None
+
+                raise ValueError("Invalid JSON.")
+
+            except Exception:
+
+                attempts += 1
+                logging.warning(f"Attempt {attempts} failed")
+
+        logging.warning("All attempts failed. Assuming query is not off topic.")
+        return None
 
     def stream_refusal_message(self, refusal_message: str) -> Iterator[str]:
         """
@@ -270,17 +279,41 @@ class Chat(Base):
                 yield answer_chunk
 
         if "context" in self.formatted_output:
-            top_ranking_document = self.formatted_output["context"][0]
-            if top_ranking_document.metadata["score"] < 0.8:
-                url = top_ranking_document.metadata["link"]
-                title = top_ranking_document.metadata["title"]
-                context_text = f"\n\n For more information, check out [{title}]({url})"
-                for token in context_text.split(" "):
+
+            top_ranking_documents = []
+            used = []
+            for doc in self.formatted_output["context"]:
+                if (doc.metadata["score"] <= 0.8) and (not doc.metadata["link"] in used):
+                    top_ranking_documents.append(doc)
+                    used.append(doc.metadata["link"])
+
+            if top_ranking_documents == []:
+                self.formatted_output["answer"] = acc_answer
+                return
+
+            top_ranking_documents = sorted(
+                top_ranking_documents, 
+                key=lambda x: x.metadata["score"]
+            )[:3]
+
+            context_text = f"\n\n For more information, check out the following:\n\n"
+            self.formatted_output["source"] = context_text
+            for token in context_text.split(" "):
+                time.sleep(0.01)
+                yield " "
+                time.sleep(0.01)
+                yield token
+
+            for doc in top_ranking_documents:
+                url = doc.metadata["link"]
+                title = doc.metadata["title"]
+                doc_context_text = f"- [{title}]({url})\n"
+                for token in doc_context_text.split(" "):
                     time.sleep(0.01)
                     yield " "
                     time.sleep(0.01)
                     yield token
-                self.formatted_output["source"] = context_text
+                self.formatted_output["source"] += doc_context_text
 
         self.formatted_output["answer"] = acc_answer
 
@@ -334,7 +367,7 @@ class Chat(Base):
                 )
 
                 if debug:
-                    print("\nSTART\n")
+                    print(f"\nRefusal message: <<<{refusal_message}>>>")
 
                 if refusal_message is not None:
 
@@ -360,8 +393,16 @@ class Chat(Base):
                 st.session_state["references"].append("")
 
             if debug:
-                print()
-                print("===========")
-                print(self.formatted_output)
-                print("=============")
-                print()
+                if "context" in self.formatted_output:
+                    print("\n\n")
+                    print("=============")
+                    for i, doc in enumerate(self.formatted_output["context"]):
+                        print(f"DOCUMENT {i}: ")
+
+                        print("<---")
+                        print(doc)
+                        print("--->")
+                    print("=============")
+                    print("\n\n")
+                else:
+                    print("\n\nNO DOCUMENTS RETRIEVED")

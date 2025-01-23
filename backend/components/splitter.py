@@ -32,6 +32,21 @@ class PostTextSplitter(RecursiveCharacterTextSplitter):
             str: page content without tags
         """
         return re.sub(r"<h\d>(.+)</h\d>", r"\1:", page_content).strip()
+    
+    @staticmethod
+    def add_title(page_content: str, title: str) -> str:
+        """
+        Adds title of article to Document / Chunk page_content, for better retrieval.
+
+        Args:
+            page_content (str): plain text page content
+            title (str): source article title
+
+        Returns:
+            str: modded page_content
+        """
+        title = re.sub(r"\([^()]*\)", "", title).strip()
+        return page_content + f" (taken from '{title}')"
 
     def split_documents(self, documents: Iterable[Document]) -> List[Document]:
         """
@@ -40,7 +55,20 @@ class PostTextSplitter(RecursiveCharacterTextSplitter):
 
         documents = super().split_documents(documents)
 
+        # clean
         for doc in documents:
             doc.page_content = PostTextSplitter.remove_tags(doc.page_content)
+
+        # filter
+        documents = [
+            doc for doc in documents if len(doc.page_content) >= 150
+        ]
+
+        # add title
+        for doc in documents:
+            doc.page_content = PostTextSplitter.add_title(
+                page_content=doc.page_content, 
+                title=doc.metadata["title"]
+            )
 
         return documents

@@ -40,10 +40,10 @@ class CST:
     CHUNK_OVERLAP = 0
 
     # Max number of documents to return from retriever
-    K = 4
+    K = 5
 
     # Retrieval Similarity Threshold
-    THRESHOLD = 1.3
+    THRESHOLD = 0.8
 
     # Embedding model for chunks
     EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
