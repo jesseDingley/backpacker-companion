@@ -6,7 +6,7 @@ from time import time
 from tqdm import tqdm
 from backend.components.loader import PostURLLoader
 from backend.components.splitter import PostTextSplitter
-from backend.const import CST
+from backend.config.const import CST
 from backend.base import Base
 from langchain_chroma import Chroma
 from langchain_community.vectorstores.utils import filter_complex_metadata
@@ -38,7 +38,7 @@ class Vectorizer(Base):
     def __init__(self) -> None:
         super().__init__()
 
-        self.headers = {"User-Agent": CST.USER_AGENT}
+        self.headers = {"User-Agent": self.collection_config["USER_AGENT"]}
 
         newspaper_config = Config()
         newspaper_config.browser_user_agent = self.headers["User-Agent"]
@@ -64,7 +64,10 @@ class Vectorizer(Base):
 
         urls = []
 
-        sitemap_url = os.path.join(CST.BASE_URL, "sitemap")
+        sitemap_url = os.path.join(
+            self.collection_config["BASE_URL"], 
+            "sitemap"
+        )
 
         response = requests.get(url=sitemap_url, headers=self.headers)
 
@@ -76,7 +79,7 @@ class Vectorizer(Base):
 
             for post_li in posts_ul:
 
-                post_url = CST.BASE_URL + post_li.find("a").attrs["href"]
+                post_url = self.collection_config["BASE_URL"] + post_li.find("a").attrs["href"]
 
                 if not post_url in [
                     "https://www.thebrokebackpacker.com/best-bivvy-bags/",
@@ -87,7 +90,7 @@ class Vectorizer(Base):
 
                     urls.append(post_url)
 
-            with open(self.path_post_urls, "w") as f:
+            with open(self.paths["POST_URLS"], "w") as f:
                 f.write("\n".join(urls))
 
             logging.info("Done.")
@@ -126,23 +129,23 @@ class Vectorizer(Base):
 
             try:
                 self.chroma_client.delete_collection(
-                    name=CST.COLLECTION
+                    name=self.collection_config["NAME"]
                 )
-                logging.info(f"Deleted existing collection {CST.COLLECTION}.")
+                logging.info(f"Deleted existing collection {self.collection_config['NAME']}.")
             except:
                 pass
 
         # CREATE / ADD TO COLLECTION
 
         collection = Chroma(
-            collection_name=CST.COLLECTION,
+            collection_name=self.collection_config["NAME"],
             client=self.chroma_client,
             embedding_function=self.embeddings,
             create_collection_if_not_exists=True
         )
 
         if i == 0:
-            logging.info(f"Created collection {CST.COLLECTION}.")
+            logging.info(f"Created collection {self.collection_config['NAME']}.")
 
         collection.add_documents(
             documents=texts
@@ -154,7 +157,7 @@ class Vectorizer(Base):
 
         More specifically, uploads documents in 
         """
-        with open(self.path_post_urls, "r", encoding="utf8") as f:
+        with open(self.paths["POST_URLS"], "r", encoding="utf8") as f:
             post_urls = [
                 url.replace("\n", "").strip() for url in f.readlines()
             ]

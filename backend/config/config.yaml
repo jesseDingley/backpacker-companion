@@ -1,0 +1,21 @@
+app:
+  name: "Alma"
+  llm: "mistralai/Mistral-Nemo-Instruct-2407"
+  ui:
+    message_alignment: "flex-end"
+    message_bg_color: "linear-gradient(135deg, #00B2FF 0%, #006AFF 100%)"
+
+collection:
+  name: "broke-backpacker"
+  base_url: "https://www.thebrokebackpacker.com"
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+
+paths:
+  data:
+    urls: "backend/data/post_urls.txt"
+  images:
+    title_image: "backend/images/title_image.png"
+    assistant_icon: "backend/images/assistant_icon.png"
+  ui:
+    sidebar: "backend/ui/sidebar.md"

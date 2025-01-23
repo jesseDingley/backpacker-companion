@@ -5,7 +5,7 @@ import re
 import random
 
 from backend.base import Base
-from backend.const import CST
+from backend.config.const import CST
 from backend.components.prompts import Prompts
 from backend.components.retriever import Retriever
 from backend.components.parsers import Parsers
@@ -32,7 +32,7 @@ class Chat(Base):
         vectordb = Chroma(
             client=self.chroma_client,
             embedding_function=self.embeddings,
-            collection_name=CST.COLLECTION
+            collection_name=self.collection_config["NAME"]
         )
 
         login(token=st.secrets["HUGGINGFACE_API_KEY"])
@@ -40,7 +40,7 @@ class Chat(Base):
         callbacks = [StreamingStdOutCallbackHandler()]
 
         llm = HuggingFaceEndpoint(
-            repo_id=CST.LLM,
+            repo_id=self.LLM,
             task="text-generation",
             max_new_tokens=CST.MAX_NEW_TOKENS,
             temperature=CST.TEMPERATURE,
@@ -74,31 +74,16 @@ class Chat(Base):
             | Parsers.off_topic_verification_parser
         )
 
-        self.assistant_icon = Image.open(self.path_assistant_icon)
+        self.assistant_icon = Image.open(self.paths["ASSISTANT_ICON"])
 
-        with open(self.path_sidebar_md, "r") as f:
+        with open(self.paths["SIDEBAR"], "r") as f:
             self.sidebar_content = f.read()
 
         self.formatted_output = None
         self.ai_msg_placeholder = None
 
-    @staticmethod
-    def write_human_msg(msg: str) -> None:
-        """
-        Writes human message to Streamlit app
-
-        Args:
-            msg (str): message to write
-        """
-        st.write(
-            f"""
-                <div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: {CST.MESSAGE_ALIGNMENT};">
-                    <div style="background: {CST.MESSAGE_BG_COLOR}; color: white; border-radius: 15px; padding: 10px; margin-right: 5px; max-width: 75%; font-size: 14px;">
-                        {msg} \n </div>
-                </div>
-                """,
-            unsafe_allow_html=True,
-        )
+        self.MESSAGE_ALIGNMENT = self.config.app.ui.message_alignment
+        self.MESSAGE_BG_COLOR = self.config.app.ui.message_bg_color
 
     @staticmethod
     def diversify_vocabulary(current_chunk: str) -> str:
@@ -160,6 +145,23 @@ class Chat(Base):
             str: formatted chunk
         """
         return re.sub(r"(?<!\\)\$", "\$", current_chunk)
+
+    def write_human_msg(self, msg: str) -> None:
+        """
+        Writes human message to Streamlit app
+
+        Args:
+            msg (str): message to write
+        """
+        st.write(
+            f"""
+                <div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: {self.MESSAGE_ALIGNMENT};">
+                    <div style="background: {self.MESSAGE_BG_COLOR}; color: white; border-radius: 15px; padding: 10px; margin-right: 5px; max-width: 75%; font-size: 14px;">
+                        {msg} \n </div>
+                </div>
+                """,
+            unsafe_allow_html=True,
+        )
 
     def is_query_off_topic(
         self, query: str, chat_history: List[Tuple[str, str]]
@@ -321,10 +323,10 @@ class Chat(Base):
         """
         Run streamlit app
         """
-        st.image(self.path_title_image, width=100)
-        st.title(CST.NAME)
+        st.image(self.paths["TITLE_IMAGE"], width=100)
+        st.title(self.NAME)
         st.caption(
-            f"{CST.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
+            f"{self.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
         )
 
         with st.sidebar:
@@ -335,7 +337,7 @@ class Chat(Base):
 
         if not "chat_history" in st.session_state:
             st.session_state["chat_history"] = [
-                ("assistant", f"Hey there! {CST.NAME} here, how can I help you?")
+                ("assistant", f"Hey there! {self.NAME} here, how can I help you?")
             ]
 
         if not "references" in st.session_state:
@@ -347,7 +349,7 @@ class Chat(Base):
             role = role_msg_tuple[0]
             msg = role_msg_tuple[1]
             if role == "user":
-                Chat.write_human_msg(msg)
+                self.write_human_msg(msg)
             else:
                 with st.chat_message(role, avatar=self.assistant_icon):
                     st.empty()
@@ -355,7 +357,7 @@ class Chat(Base):
 
         if prompt := st.chat_input():
 
-            Chat.write_human_msg(prompt)
+            self.write_human_msg(prompt)
 
             with st.chat_message("assistant", avatar=self.assistant_icon):
 
