@@ -24,3 +24,7 @@ class CST:
     
     # LLM Temperature
     TEMPERATURE = 0.1
+
+    # Max number of turns to store in memory
+    # A turn is a (user, assistant) pair.
+    MAX_TURNS = 10

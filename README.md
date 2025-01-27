@@ -25,6 +25,4 @@ chroma_ip = "<your-vm-ip-returned-by-terraform>"
 
 ## Room for improvement.
 
-- Return more sources both on screen and in the retriever.
-- Config.yaml
-- Limit chat history
+- Improve Sys Prompt.

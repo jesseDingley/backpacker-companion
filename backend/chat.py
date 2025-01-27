@@ -46,7 +46,9 @@ class Chat(Base):
             temperature=CST.TEMPERATURE,
             callbacks=callbacks,
             streaming=True,
-            stop_sequences=["<unk>", "</s>", "}"],
+            stop_sequences=[
+                "<unk>", "</s>", "}", "User"
+            ],
         )
 
         retriever = Retriever(vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD)
@@ -145,6 +147,21 @@ class Chat(Base):
             str: formatted chunk
         """
         return re.sub(r"(?<!\\)\$", "\$", current_chunk)
+    
+    @staticmethod
+    def limit_chat_history(chat_history: List[Tuple[str, str]], limit: int) -> List[Tuple[str, str]]:
+        """
+        Limits chat history to N most recent turns, 
+        where a turn is a [user -> assistant] sequence of dialogue.
+
+        Args:
+            chat_history (List[Tuple[str, str]]): chat history
+            limit (int): max number of turns to keep.
+
+        Returns:
+            List[Tuple[str, str]]: snipped chat history.
+        """
+        return chat_history[len(chat_history) - 2*limit:]
 
     def write_human_msg(self, msg: str) -> None:
         """
@@ -176,6 +193,11 @@ class Chat(Base):
         Returns:
             str: Refusal message if off topic.
         """
+
+        chat_history = Chat.limit_chat_history(
+            chat_history, 
+            limit=CST.MAX_TURNS
+        )
 
         attempts = 0
 
@@ -237,6 +259,10 @@ class Chat(Base):
         Returns:
             Iterable[str]: iterator on llm response chunks
         """
+        chat_history = Chat.limit_chat_history(
+            chat_history, 
+            limit=CST.MAX_TURNS
+        )
         started_streaming = False
         starts_with_ai = False
         self.formatted_output = {}
@@ -323,26 +349,32 @@ class Chat(Base):
         """
         Run streamlit app
         """
+
+        # Header
         st.image(self.paths["TITLE_IMAGE"], width=100)
         st.title(self.NAME)
         st.caption(
             f"{self.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
         )
 
+        # Sidebar 
         with st.sidebar:
             if st.button("New Chat", use_container_width=True, type="primary"):
                 for key in st.session_state.keys():
                     del st.session_state[key]
             st.markdown(self.sidebar_content)
 
+        # Init chat history
         if not "chat_history" in st.session_state:
             st.session_state["chat_history"] = [
                 ("assistant", f"Hey there! {self.NAME} here, how can I help you?")
             ]
 
+        # Init data sources to display on each assistant message
         if not "references" in st.session_state:
             st.session_state["references"] = [""]
 
+        # Display whole chat history
         for role_msg_tuple, reference in zip(
             st.session_state["chat_history"], st.session_state["references"]
         ):
@@ -355,10 +387,12 @@ class Chat(Base):
                     st.empty()
                     st.write(msg + reference)
 
+        # New message from User
         if prompt := st.chat_input():
 
             self.write_human_msg(prompt)
 
+            # Generate and stream response from Assistant
             with st.chat_message("assistant", avatar=self.assistant_icon):
 
                 self.ai_msg_placeholder = st.empty()
@@ -384,6 +418,7 @@ class Chat(Base):
                         )
                     )
 
+            # Update chat history
             st.session_state["chat_history"].append(("user", prompt))
             st.session_state["chat_history"].append(
                 ("assistant", self.formatted_output["answer"])
@@ -394,6 +429,7 @@ class Chat(Base):
             else:
                 st.session_state["references"].append("")
 
+            # Debug statements
             if debug:
                 if "context" in self.formatted_output:
                     print("\n\n")
