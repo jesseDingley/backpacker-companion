@@ -27,6 +27,7 @@ class Base:
 
         self.NAME = self.config.app.name
         self.LLM = self.config.app.llm
+        self.debug = self.config.app.debug
 
         self.collection_config = {
             "NAME": self.config.collection.name,

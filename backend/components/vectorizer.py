@@ -1,4 +1,5 @@
 from typing import List
+import random
 import requests
 import os
 import logging
@@ -9,7 +10,6 @@ from backend.components.splitter import PostTextSplitter
 from backend.config.const import CST
 from backend.base import Base
 from langchain_chroma import Chroma
-from langchain_community.vectorstores.utils import filter_complex_metadata
 from newspaper import Config
 from bs4 import BeautifulSoup
 
@@ -45,11 +45,7 @@ class Vectorizer(Base):
         newspaper_config.request_timeout = CST.REQUEST_TIMEOUT
         self.newspaper_kwargs = {"config": newspaper_config}
 
-        self.text_splitter = PostTextSplitter(
-            chunk_size=CST.CHUNK_SIZE,
-            chunk_overlap=CST.CHUNK_OVERLAP,
-            length_function=len,
-        )
+        self.text_splitter = PostTextSplitter()
 
     def get_and_save_post_urls(self) -> None:
         """
@@ -118,10 +114,16 @@ class Vectorizer(Base):
             urls=batch, show_progress_bar=True, **self.newspaper_kwargs
         )
 
-        docs = url_loader.load()
+        logging.info(f"Loading {len(batch)} URLS:")
+        for url in batch:
+            logging.info(url)
+        docs, mappings = url_loader.load()
 
-        texts = self.text_splitter.split_documents(docs)
-        texts = filter_complex_metadata(texts)
+        logging.info(f"Splitting {len(batch)} Documents...")
+        texts = self.text_splitter.split_and_process_documents(
+            documents=docs, 
+            mappings=mappings
+        )
 
         if i == 0:
             
@@ -161,6 +163,8 @@ class Vectorizer(Base):
             post_urls = [
                 url.replace("\n", "").strip() for url in f.readlines()
             ]
+
+        random.shuffle(post_urls)
 
         batches = [
             post_urls[i:i + CST.BATCH_SIZE] for i in range(

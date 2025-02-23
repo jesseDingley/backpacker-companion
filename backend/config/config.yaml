@@ -1,6 +1,7 @@
 app:
   name: "Alma"
-  llm: "mistralai/Mistral-Nemo-Instruct-2407"
+  llm: "mistralai/Mistral-7B-Instruct-v0.3"
+  debug: true
   ui:
     message_alignment: "flex-end"
     message_bg_color: "linear-gradient(135deg, #00B2FF 0%, #006AFF 100%)"

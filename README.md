@@ -26,3 +26,7 @@ chroma_ip = "<your-vm-ip-returned-by-terraform>"
 ## Room for improvement.
 
 - Improve Sys Prompt.
+- Rephrased input is computed twice.
+- Test hybrid vector / kw search
+- (Include full length blogs)
+- Fix multiple header appearances (like in https://www.thebrokebackpacker.com/travel-insurance-mexico/)
