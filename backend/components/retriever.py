@@ -1,12 +1,13 @@
-from typing import Any
 from langchain_chroma import Chroma
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.document_compressors.flashrank_rerank import FlashrankRerank
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_core.runnables import chain
 from langchain_core.documents import Document
-from typing import List
-
+from typing import List, Literal, Dict, Any
+import requests
+import streamlit as st
+import subprocess
 
 class Retriever:
     """Defines different retrievers.
@@ -23,7 +24,8 @@ class Retriever:
 
     def __new__(
         cls,
-        vectordb: Chroma,
+        search_type: Literal["vector", "hybrid", "rerank"],
+        vectordb: Chroma = None,
         k: int = 4,
         threshold: float | None = None,
         rerank: bool = False,
@@ -32,16 +34,21 @@ class Retriever:
 
         instance = super().__new__(cls)
 
+        instance.search_type = search_type
         instance.vectordb = vectordb
         instance.k = k
         instance.threshold = threshold
         instance.rerank = rerank
         instance.rerank_top_k = rerank_top_k
+        instance.hretriever_endpoint = "http://" + st.secrets["chroma_ip"] + ":8080/retrieve"
+        instance.hretriever_endpoint_headers = {
+            "Authorization": st.secrets["chroma_server_auth_credentials"]
+        }
 
         return instance.initialize_retriever()
 
     @staticmethod
-    def initialize_vectordb_retriever(
+    def initialize_vector_retriever_chain(
         vectordb: Chroma, k: int, threshold: float | None = None
     ) -> VectorStoreRetriever:
         """
@@ -57,7 +64,8 @@ class Retriever:
         """
 
         @chain
-        def retriever(query: str) -> List[Document]:
+        def retriever(fields: Dict[str, Any]) -> List[Document]:
+            query = fields["rephrased_input"]
             docs, scores = zip(*vectordb.similarity_search_with_score(query, k=k))
             for doc, score in zip(docs, scores):
                 doc.metadata["score"] = score
@@ -68,17 +76,67 @@ class Retriever:
 
         return retriever
 
-    def initialize_retriever(self) -> Any:
-        """Initializes retriever."""
-        if not self.rerank:
-            return self.initialize_standard_retriever()
-        return self.initialize_rerank_retriever()
+    def initialize_vector_retriever(self) -> VectorStoreRetriever:
+        """Initializes vector retriever."""
 
-    def initialize_standard_retriever(self) -> VectorStoreRetriever:
-        """Initializes standard retriever."""
-
-        return Retriever.initialize_vectordb_retriever(
+        return Retriever.initialize_vector_retriever_chain(
             vectordb=self.vectordb, k=self.k, threshold=self.threshold
+        )
+
+    @staticmethod
+    def initialize_hybrid_retriever_chain(
+        hretriever_endpoint: str, 
+        hretriever_endpoint_headers: dict,
+        k: int,
+        launch_api_on_call: bool = False,
+    ) -> VectorStoreRetriever:
+        """Initializes hybrid retriever chain."""
+
+        if launch_api_on_call:
+            subprocess.run([
+                "gcloud", "compute", "ssh", "jessedingley@chroma-instance", 
+                "--zone=europe-west1-d", 
+                "--command='cd /home/jessedingley/playground && sh launch_api.sh'"
+            ])
+        
+        @chain
+        def retriever(fields: Dict[str, Any]) -> List[Document]:
+
+            query = fields["rephrased_input"]
+
+            response = requests.post(
+                hretriever_endpoint, 
+                json={
+                    "query": query,
+                    "k": k,
+                }, 
+                headers=hretriever_endpoint_headers
+            )
+
+            assert response.status_code == 200, "API Call Failed."
+
+            retrieved_docs = response.json()["res"]
+
+            langchain_docs = []
+            for doc in retrieved_docs:
+                langchain_docs.append(
+                    Document(
+                        page_content=doc["text"],
+                        metadata=doc["metadata"]
+                    )
+                )
+
+            return langchain_docs
+
+        return retriever
+    
+    def initialize_hybrid_retriever(self) -> VectorStoreRetriever:
+        """Initializes hybrid retriever."""
+
+        return Retriever.initialize_hybrid_retriever_chain(
+            hretriever_endpoint=self.hretriever_endpoint,
+            hretriever_endpoint_headers=self.hretriever_endpoint_headers,
+            k=self.k
         )
 
     def initialize_rerank_retriever(self) -> ContextualCompressionRetriever:
@@ -94,3 +152,12 @@ class Retriever:
         return ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=vectordb_retriever
         )
+    
+    def initialize_retriever(self) -> Any:
+        """Initializes retriever."""
+        if self.search_type == "vector":
+            return self.initialize_vector_retriever()
+        if self.search_type == "hybrid":
+            return self.initialize_hybrid_retriever()
+        if self.search_type == "rerank":
+            return self.initialize_rerank_retriever()

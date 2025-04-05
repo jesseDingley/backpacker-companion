@@ -15,6 +15,7 @@ from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHan
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
+from langchain.schema.output_parser import StrOutputParser
 from huggingface_hub import login
 from PIL import Image
 
@@ -29,11 +30,23 @@ class Chat(Base):
     def __init__(self) -> None:
         super().__init__()
 
-        vectordb = Chroma(
-            client=self.chroma_client,
-            embedding_function=self.embeddings,
-            collection_name=self.collection_config["NAME"]
-        )
+        if self.RETRIEVER == "hybrid":
+
+            retriever = Retriever(
+                search_type="hybrid", k=CST.K, threshold=CST.THRESHOLD
+            )
+
+        else:
+            
+            vectordb = Chroma(
+                client=self.chroma_client,
+                embedding_function=self.embeddings,
+                collection_name=self.collection_config["NAME"]
+            )
+
+            retriever = Retriever(
+                search_type="vector", vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD
+            )
 
         login(token=st.secrets["HUGGINGFACE_API_KEY"])
 
@@ -47,11 +60,9 @@ class Chat(Base):
             callbacks=callbacks,
             streaming=True,
             stop_sequences=[
-                "<unk>", "</s>", "}", "User"
+                "<unk>", "</s>", "Assistant", "User"
             ],
         )
-
-        retriever = Retriever(vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD)
 
         prompts = Prompts()
 
@@ -60,14 +71,16 @@ class Chat(Base):
             llm=llm, prompt=prompts.qa_chat_prompt_template
         )
 
-        history_aware_retriever = create_history_aware_retriever(
-            llm=llm,
-            retriever=retriever,
-            prompt=prompts.rephrase_chat_prompt_template,
-        )
+        # no longer in use
+        # would have been used in create_retrieval_chain()
+        #history_aware_retriever = create_history_aware_retriever(
+        #    llm=llm,
+        #    retriever=retriever,
+        #    prompt=prompts.rephrase_chat_prompt_template,
+        #)
 
         self.qa = create_retrieval_chain(
-            retriever=history_aware_retriever, combine_docs_chain=combine_docs_chain
+            retriever=retriever, combine_docs_chain=combine_docs_chain
         )
 
         self.off_topic_verification_chain = (
@@ -75,6 +88,8 @@ class Chat(Base):
             | llm
             | Parsers.off_topic_verification_parser
         )
+
+        self.rephrase_chain = prompts.rephrase_chat_prompt_template | llm | StrOutputParser()
 
         self.assistant_icon = Image.open(self.paths["ASSISTANT_ICON"])
 
@@ -206,8 +221,14 @@ class Chat(Base):
             try:
 
                 output_json = self.off_topic_verification_chain.invoke(
-                    {"input": query + " JSON: ", "chat_history": chat_history}
+                    {"input": query, "chat_history": chat_history}
                 )
+
+                if self.debug:
+                    print("\n<<<BEGIN OFF TOPIC JSON:>>>")
+                    print(output_json)
+                    print("<<<END OFF TOPIC JSON:>>>\n")
+
 
                 is_off_topic = output_json["is_off_topic"].lower().strip()
 
@@ -248,12 +269,13 @@ class Chat(Base):
 
         self.formatted_output["answer"] = refusal_message
 
-    def stream(self, query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
+    def stream(self, query: str, rephrased_query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
         """
         Streams LLM response given a query and chat history.
 
         Args:
             query (str): user query
+            rephrased_query (str): rephrased user query based on history for retriever.
             chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
 
         Returns:
@@ -268,8 +290,9 @@ class Chat(Base):
         self.formatted_output = {}
         acc_answer = ""
         for chunk in self.qa.stream(
-            input={"input": query, "chat_history": Chat.format_chat_history(chat_history)}
+            input={"input": query, "rephrased_input": rephrased_query, "chat_history": Chat.format_chat_history(chat_history)}
         ):
+
             if input_chunk := chunk.get("input"):
                 self.formatted_output["input"] = input_chunk
 
@@ -311,7 +334,7 @@ class Chat(Base):
             top_ranking_documents = []
             used = []
             for doc in self.formatted_output["context"]:
-                if (doc.metadata["score"] <= 0.8) and (not doc.metadata["link"] in used):
+                if (doc.metadata["score"] <= CST.THRESHOLD) and (not doc.metadata["link"] in used):
                     top_ranking_documents.append(doc)
                     used.append(doc.metadata["link"])
 
@@ -321,7 +344,8 @@ class Chat(Base):
 
             top_ranking_documents = sorted(
                 top_ranking_documents, 
-                key=lambda x: x.metadata["score"]
+                key=lambda x: x.metadata["score"],
+                reverse=True
             )[:3]
 
             context_text = f"\n\n For more information, check out the following:\n\n"
@@ -345,7 +369,7 @@ class Chat(Base):
 
         self.formatted_output["answer"] = acc_answer
 
-    def run_app(self, debug=True) -> None:
+    def run_app(self) -> None:
         """
         Run streamlit app
         """
@@ -398,12 +422,21 @@ class Chat(Base):
                 self.ai_msg_placeholder = st.empty()
                 self.ai_msg_placeholder.write("Hmm...")
 
+                rephrased_input = self.rephrase_chain.invoke({
+                    "input": prompt, 
+                    "chat_history": Chat.format_chat_history(st.session_state["chat_history"])
+                })
+
                 refusal_message = self.is_query_off_topic(
-                    prompt, st.session_state["chat_history"]
+                    rephrased_input, st.session_state["chat_history"]
                 )
 
-                if debug:
+                if self.debug:
                     print(f"\nRefusal message: <<<{refusal_message}>>>")
+                    print("\n\n<<<BEGIN Rephrased Input>>>")
+                    print(rephrased_input)
+                    print("<<<END Rephrased Input>>>\n\n")
+                    
 
                 if refusal_message is not None:
 
@@ -414,6 +447,7 @@ class Chat(Base):
                     st.write_stream(
                         self.stream(
                             prompt,
+                            rephrased_input,
                             st.session_state["chat_history"],
                         )
                     )
@@ -430,7 +464,7 @@ class Chat(Base):
                 st.session_state["references"].append("")
 
             # Debug statements
-            if debug:
+            if self.debug:
                 if "context" in self.formatted_output:
                     print("\n\n")
                     print("=============")

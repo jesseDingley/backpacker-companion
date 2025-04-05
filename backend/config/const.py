@@ -8,10 +8,12 @@ class CST:
     REQUEST_TIMEOUT = 15
 
     # Max number of documents to return from retriever
-    K = 7
+    # TODO: Reajust
+    K = 5
 
     # Retrieval Similarity Threshold
-    THRESHOLD = 0.7
+    # TODO: Reajust
+    THRESHOLD = 1.0
 
     # Max new tokens for LLM to return
     MAX_NEW_TOKENS = 1024

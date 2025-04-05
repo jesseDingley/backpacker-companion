@@ -1,6 +1,7 @@
 app:
   name: "Alma"
   llm: "mistralai/Mistral-7B-Instruct-v0.3"
+  retriever: "hybrid"
   debug: true
   ui:
     message_alignment: "flex-end"
