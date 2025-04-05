@@ -8,6 +8,9 @@ rerun:
 	pip install -e .
 	streamlit run app.py
 
+launch-api:
+	python backend/retriever_api/retriever_api.py
+
 deploy-chroma:
 	export GOOGLE_APPLICATION_CREDENTIALS="gcloud-credentials.json"
 	terraform plan -var-file chroma.tfvars
