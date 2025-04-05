@@ -21,3 +21,5 @@ paths:
     assistant_icon: "backend/images/assistant_icon.png"
   ui:
     sidebar: "backend/ui/sidebar.md"
+  docstores:
+    bm25_docstore: "/home/docstores/texts-docstore-v2"
