@@ -5,12 +5,18 @@ import os
 from collections import defaultdict
 from llama_index.core.schema import QueryBundle
 from typing import List, Dict, Any, Tuple
+from chromadb import Collection
 
 class VectorRetriever:
     """Vector Retriever using Chroma collection."""
     
-    def __init__(self, top_k: int, threshold: float) -> None:
-        self.collection = Utils.load_collection_from_local()
+    def __init__(
+            self, 
+            collection: Collection, 
+            top_k: int, 
+            threshold: float
+        ) -> None:
+        self.collection = collection
         self.top_k = top_k
         self.threshold = threshold
 
@@ -127,7 +133,10 @@ class HybridRetriever:
         w_bm25: float = 0.5,
         w_vector: float = 0.5,
         rrf_k: int = 60,
+        max_docs_plus_children: int = 15,
     ):
+        
+        self.collection = Utils.load_collection_from_local()
         
         self.bm25_retriever = CustomBM25Retriever.from_defaults(
             docstore_path=path_docstore,
@@ -138,6 +147,7 @@ class HybridRetriever:
         )
 
         self.vector_retriever = VectorRetriever(
+            collection=self.collection,
             top_k=pre_top_k,
             threshold=vector_threshold
         )
@@ -147,6 +157,8 @@ class HybridRetriever:
 
         self.w_bm25 = w_bm25
         self.w_vector = w_vector
+
+        self.max_docs_plus_children = max_docs_plus_children
 
     @staticmethod
     def get_documents_ranking(retriever_results: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -189,17 +201,22 @@ class HybridRetriever:
         return id2doc_mapping
 
     @staticmethod
-    def sort_and_filter_rrf_scores(rrf_scores: Dict[str, float], k: int) -> List[Tuple[str, float]]:
+    def sort_and_filter_rrf_scores(rrf_scores: Dict[str, float], k: int, threshold: float) -> List[Tuple[str, float]]:
         """
         Sorts and filters RRF scores.
 
         Args:
             rrf_scores (Dict[str, float]): ID -> RRF Score mapping
             k (int): num of top docs to return
+            threshold (float): minimum score a doc must have.
 
         Returns:
             List[Tuple[str, float]]: Sorted Filtered List of (ID, score) pairs.
         """
+        rrf_scores = {
+            k: score for k, score in rrf_scores.items() if score >= threshold
+        }
+
         rrf_scores = sorted(
             rrf_scores.items(), 
             key = lambda x: x[1], 
@@ -263,7 +280,61 @@ class HybridRetriever:
 
         return rrf_scores
 
-    def retrieve(self, query: str, k: int) -> List[Dict[str, Any]]:
+    def get_children(self, docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        For a given set of documents, 
+        returns original docs and associated children.
+        """
+
+        counter = 0
+
+        docs_with_children = []
+
+        for i, doc in enumerate(docs):
+
+            docs_with_children.append(doc)
+            counter += 1
+
+            if i < 5: # only top n documents can be considered eligible for child retrieval.
+                doc_child_ids = doc["metadata"]["children"].split("[SEP]")
+            else:
+                doc_child_ids = [""]
+
+            if doc_child_ids != [""]:
+
+                doc_children = self.collection.get(
+                    where={
+                        "id": {
+                            "$in": doc_child_ids
+                        }
+                    },
+                    include=['metadatas', 'documents']
+                )
+
+                formatted_children = []
+                for i in range(len(doc_children["ids"])):
+                    formatted_children.append(
+                        {
+                            "id": doc_children["metadatas"][i]["id"],
+                            "text": doc_children["documents"][i],
+                            "metadata": doc_children["metadatas"][i],
+                        }
+                    )
+                
+                formatted_children = sorted(
+                    formatted_children, 
+                    key=lambda x: doc_child_ids.index(x["id"])
+                )
+
+                docs_with_children += formatted_children
+                counter += len(formatted_children)
+
+            if counter >= self.max_docs_plus_children:
+                return docs_with_children[:self.max_docs_plus_children]
+
+        return docs_with_children
+
+    def retrieve(self, query: str, k: int, threshold: float) -> List[Dict[str, Any]]:
         """
         Performs Hybrid Retrieval given query.
 
@@ -291,7 +362,7 @@ class HybridRetriever:
             vector_ranks
         )
 
-        rrf_scores = self.sort_and_filter_rrf_scores(rrf_scores, k)
+        rrf_scores = self.sort_and_filter_rrf_scores(rrf_scores, k, threshold)
         
         id2doc_mapping = HybridRetriever.get_id2doc_mapping(
             bm25_docs, 
@@ -303,5 +374,7 @@ class HybridRetriever:
             doc_to_return = id2doc_mapping[doc_id]
             doc_to_return["metadata"]["score"] = score
             retrieved_docs.append(doc_to_return)
+
+        retrieved_docs_plus_children = self.get_children(retrieved_docs)
             
-        return retrieved_docs
+        return retrieved_docs_plus_children
