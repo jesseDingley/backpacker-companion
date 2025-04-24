@@ -15,6 +15,7 @@ config = OmegaConf.load("backend/config/config.yaml")
 class QueryRequest(BaseModel):
     query: str
     k: int
+    threshold: float
 
 class HybridRetrieverAPI:
 
@@ -47,7 +48,8 @@ class HybridRetrieverAPI:
         async def retrieve_docs(request: QueryRequest, api_key: str = Depends(HybridRetrieverAPI.verify_api_key)):
             retrieved_documents = self.retriever.retrieve(
                 query=request.query,
-                k=request.k
+                k=request.k,
+                threshold=request.threshold,
             )
             return {
                 "query": request.query,
