@@ -177,3 +177,5 @@ chroma.tfvars
 main.tf
 
 .streamlit/
+
+tgi/

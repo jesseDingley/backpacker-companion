@@ -21,6 +21,24 @@ from PIL import Image
 
 import streamlit as st
 
+@st.cache_resource
+def login_hf():
+    login(token=st.secrets["HUGGINGFACE_API_KEY"])
+
+@st.cache_resource
+def init_llm(llm_endpoint):
+    return HuggingFaceEndpoint(
+        endpoint_url=llm_endpoint,
+        task="text-generation",
+        max_new_tokens=CST.MAX_NEW_TOKENS,
+        temperature=CST.TEMPERATURE,
+        repetition_penalty=1.3,
+        callbacks=[StreamingStdOutCallbackHandler()],
+        streaming=True,
+        stop_sequences=[
+            "<unk>", "</s>", "Assistant", "User"
+        ],
+    )
 
 class Chat(Base):
     """
@@ -48,21 +66,9 @@ class Chat(Base):
                 search_type="vector", vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD
             )
 
-        login(token=st.secrets["HUGGINGFACE_API_KEY"])
+        login_hf()
 
-        callbacks = [StreamingStdOutCallbackHandler()]
-
-        llm = HuggingFaceEndpoint(
-            repo_id=self.LLM,
-            task="text-generation",
-            max_new_tokens=CST.MAX_NEW_TOKENS,
-            temperature=CST.TEMPERATURE,
-            callbacks=callbacks,
-            streaming=True,
-            stop_sequences=[
-                "<unk>", "</s>", "Assistant", "User"
-            ],
-        )
+        llm = init_llm(llm_endpoint=self.LLM_ENDPOINT)
 
         prompts = Prompts()
 
@@ -70,14 +76,6 @@ class Chat(Base):
         combine_docs_chain = create_stuff_documents_chain(
             llm=llm, prompt=prompts.qa_chat_prompt_template
         )
-
-        # no longer in use
-        # would have been used in create_retrieval_chain()
-        #history_aware_retriever = create_history_aware_retriever(
-        #    llm=llm,
-        #    retriever=retriever,
-        #    prompt=prompts.rephrase_chat_prompt_template,
-        #)
 
         self.qa = create_retrieval_chain(
             retriever=retriever, combine_docs_chain=combine_docs_chain
@@ -334,7 +332,10 @@ class Chat(Base):
             top_ranking_documents = []
             used = []
             for doc in self.formatted_output["context"]:
-                if (doc.metadata["score"] <= CST.THRESHOLD) and (not doc.metadata["link"] in used):
+                if not doc.metadata["link"] in used:
+                    if "score" in doc.metadata:
+                        if (doc.metadata["score"] <= CST.THRESHOLD):
+                            continue
                     top_ranking_documents.append(doc)
                     used.append(doc.metadata["link"])
 
@@ -342,11 +343,7 @@ class Chat(Base):
                 self.formatted_output["answer"] = acc_answer
                 return
 
-            top_ranking_documents = sorted(
-                top_ranking_documents, 
-                key=lambda x: x.metadata["score"],
-                reverse=True
-            )[:3]
+            top_ranking_documents = top_ranking_documents[:3]
 
             context_text = f"\n\n For more information, check out the following:\n\n"
             self.formatted_output["source"] = context_text

@@ -12,14 +12,13 @@ class CST:
     K = 5
 
     # Retrieval Similarity Threshold
-    # TODO: Reajust
-    THRESHOLD = 1.0
+    THRESHOLD = 0.012
 
     # Max new tokens for LLM to return
     MAX_NEW_TOKENS = 1024
     
     # LLM Temperature
-    TEMPERATURE = 0.8
+    TEMPERATURE = 0.1
 
     # Max number of turns to store in memory
     # A turn is a (user, assistant) pair.

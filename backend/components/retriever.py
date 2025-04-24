@@ -27,7 +27,7 @@ class Retriever:
         search_type: Literal["vector", "hybrid", "rerank"],
         vectordb: Chroma = None,
         k: int = 4,
-        threshold: float | None = None,
+        threshold: float = 0.012,
         rerank: bool = False,
         rerank_top_k: int = 15,
     ) -> Any:
@@ -88,6 +88,7 @@ class Retriever:
         hretriever_endpoint: str, 
         hretriever_endpoint_headers: dict,
         k: int,
+        threshold: float,
         launch_api_on_call: bool = False,
     ) -> VectorStoreRetriever:
         """Initializes hybrid retriever chain."""
@@ -109,6 +110,7 @@ class Retriever:
                 json={
                     "query": query,
                     "k": k,
+                    "threshold": threshold,
                 }, 
                 headers=hretriever_endpoint_headers
             )
@@ -136,7 +138,8 @@ class Retriever:
         return Retriever.initialize_hybrid_retriever_chain(
             hretriever_endpoint=self.hretriever_endpoint,
             hretriever_endpoint_headers=self.hretriever_endpoint_headers,
-            k=self.k
+            k=self.k,
+            threshold=self.threshold
         )
 
     def initialize_rerank_retriever(self) -> ContextualCompressionRetriever:

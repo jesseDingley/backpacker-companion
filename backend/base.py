@@ -5,6 +5,24 @@ import streamlit as st
 import logging
 from omegaconf import OmegaConf
 
+@st.cache_resource
+def load_embeddings(embedding_model):
+    return HuggingFaceEmbeddings(
+        model_name=embedding_model
+    )
+
+@st.cache_resource
+def init_chroma_client():
+    chroma_client = chromadb.HttpClient(
+        host=st.secrets["chroma_ip"],
+        port=8000,
+        settings=Settings(
+            chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthClientProvider",
+            chroma_client_auth_credentials=st.secrets["chroma_server_auth_credentials"]
+        )
+    )
+    assert chroma_client.heartbeat() > 0
+    return chroma_client
 
 class Base:
     """
@@ -26,7 +44,7 @@ class Base:
         self.config = OmegaConf.load("backend/config/config.yaml")
 
         self.NAME = self.config.app.name
-        self.LLM = self.config.app.llm
+        self.LLM_ENDPOINT = st.secrets["llm_endpoint"]
         self.RETRIEVER = self.config.app.retriever
         self.debug = self.config.app.debug
 
@@ -44,20 +62,9 @@ class Base:
             "SIDEBAR": self.config.paths.ui.sidebar
         }
         
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name=self.collection_config["EMBEDDING_MODEL"]
-        )
+        self.embeddings = load_embeddings(self.collection_config["EMBEDDING_MODEL"])
 
-        self.chroma_client = chromadb.HttpClient(
-            host=st.secrets["chroma_ip"],
-            port=8000,
-            settings=Settings(
-                chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthClientProvider",
-                chroma_client_auth_credentials=st.secrets["chroma_server_auth_credentials"]
-            )
-        )
-
-        assert self.chroma_client.heartbeat() > 0
+        self.chroma_client = init_chroma_client()
 
         logging.basicConfig(
             level=logging.INFO,
