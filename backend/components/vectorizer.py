@@ -8,7 +8,7 @@ from tqdm import tqdm
 from backend.components.loader import PostURLLoader
 from backend.components.splitter import PostTextSplitter
 from backend.config.const import CST
-from backend.base import Base
+from backend.base import Base, init_chroma_client
 from langchain_chroma import Chroma
 from newspaper import Config
 from bs4 import BeautifulSoup
@@ -46,6 +46,8 @@ class Vectorizer(Base):
         self.newspaper_kwargs = {"config": newspaper_config}
 
         self.text_splitter = PostTextSplitter()
+
+        self.collection = None
 
     def get_and_save_post_urls(self) -> None:
         """
@@ -95,6 +97,27 @@ class Vectorizer(Base):
 
             raise Exception(f"Failed to load sitemap: {response.status_code}")
     
+    def get_or_create_collection(self) -> None:
+        """Get or create chroma collection."""
+        self.collection = Chroma(
+            collection_name=self.collection_config["NAME"],
+            client=self.chroma_client,
+            embedding_function=self.embeddings,
+            create_collection_if_not_exists=True
+        )
+
+    def safe_add_documents(self, texts):
+        try:
+            self.collection.add_documents(documents=texts)
+        except Exception as e:
+            if "401 Unauthorized" in str(e):
+                logging.warning("Google Cloud ID Token expired. Refreshing token...")
+                self.chroma_client = init_chroma_client()
+                self.get_or_create_collection()
+                self.collection.add_documents(documents=texts)
+            else:
+                raise
+
     def process_and_upload_batch(self, batch: List[str], i: int) -> None:
         """
         Processes and uploads batch of post urls to vector db. 
@@ -137,21 +160,14 @@ class Vectorizer(Base):
             except:
                 pass
 
-        # CREATE / ADD TO COLLECTION
+            # CREATE NEW COLLECTION
 
-        collection = Chroma(
-            collection_name=self.collection_config["NAME"],
-            client=self.chroma_client,
-            embedding_function=self.embeddings,
-            create_collection_if_not_exists=True
-        )
-
-        if i == 0:
+            self.get_or_create_collection()
             logging.info(f"Created collection {self.collection_config['NAME']}.")
 
-        collection.add_documents(
-            documents=texts
-        )
+        # ADD TO COLLECTION 
+
+        self.safe_add_documents(texts=texts)
 
     def init_vectordb(self) -> None:
         """
