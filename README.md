@@ -3,6 +3,24 @@
 [Live Streamlit link](https://backpacker-companion.streamlit.app)
 
 
+## Deploying Chroma
+
+To (re) deploy Chroma as a Google Cloud Run service, run
+
+```
+$ make deploy-chroma \ 
+    SERVICE_NAME=<your-cloud-run-service-name> \
+    SERVICE_ACCOUNT_NAME=<gcp-service-account-name> \
+    BUCKET_NAME=<storage-bucket-name> \
+    PROJECT_ID=<project-id>
+```
+
+See https://github.com/HerveMignot/chromadb-on-gcp for further details.
+
+## Populating Chroma Collection
+
+Run `$ make create-collection`
+
 ## How to run
 
 If the repo is not currently deployed to streamlit and you wish to test it yourself you will need to:

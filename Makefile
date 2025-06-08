@@ -1,6 +1,10 @@
 install:
 	pip install -e .
 
+create-collection:
+	pip install -e .
+	init-vectordb	
+
 run:
 	streamlit run app.py
 
@@ -12,10 +16,6 @@ launch-api:
 	python backend/retriever_api/retriever_api.py
 
 deploy-chroma:
-	export GOOGLE_APPLICATION_CREDENTIALS="gcloud-credentials.json"
-	terraform plan -var-file chroma.tfvars
-	terraform apply -var-file chroma.tfvars
-
-destroy-chroma:
-	export GOOGLE_APPLICATION_CREDENTIALS="gcloud-credentials.json"
-	terraform destroy -var-file chroma.tfvars
+	SERVICE_NAME=$(SERVICE_NAME) SERVICE_ACCOUNT_NAME=$(SERVICE_ACCOUNT_NAME) BUCKET_NAME=$(BUCKET_NAME) PROJECT_ID=$(PROJECT_ID) \
+	envsubst < chroma/deploy_chroma_template.yaml > chroma/deploy_chroma.yaml && \
+	gcloud run services replace chroma/deploy_chroma.yaml  --project $(PROJECT_ID)

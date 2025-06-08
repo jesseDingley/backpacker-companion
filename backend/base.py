@@ -1,9 +1,10 @@
 from langchain_huggingface import HuggingFaceEmbeddings
 import chromadb
-from chromadb.config import Settings
 import streamlit as st
 import logging
 from omegaconf import OmegaConf
+from google.oauth2.service_account import IDTokenCredentials
+import google.auth.transport.requests
 
 @st.cache_resource
 def load_embeddings(embedding_model):
@@ -13,14 +14,24 @@ def load_embeddings(embedding_model):
 
 @st.cache_resource
 def init_chroma_client():
-    chroma_client = chromadb.HttpClient(
-        host=st.secrets["chroma_ip"],
-        port=8000,
-        settings=Settings(
-            chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthClientProvider",
-            chroma_client_auth_credentials=st.secrets["chroma_server_auth_credentials"]
-        )
+
+    credentials = IDTokenCredentials.from_service_account_info(
+        st.secrets["service_account_data"], 
+        target_audience=st.secrets["chroma_endpoint"]
     )
+
+    auth_req = google.auth.transport.requests.Request()
+    credentials.refresh(auth_req)
+
+    chroma_client = chromadb.HttpClient(
+        host=st.secrets["chroma_endpoint"],
+        port=443,
+        ssl=True,
+        headers={
+            "Authorization": f"Bearer {credentials.token}"
+        }
+    )
+
     assert chroma_client.heartbeat() > 0
     return chroma_client
 
