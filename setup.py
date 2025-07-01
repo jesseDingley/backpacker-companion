@@ -11,6 +11,7 @@ setup(
         "console_scripts": [
             "init-vectordb=backend.core:init_vectordb",
             "update-vectordb=backend.core:update_vectordb",
+            "init-docstore=backend.core:init_docstore"
         ],
     },
     install_requires=reqs,

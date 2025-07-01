@@ -1,16 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Response
+from fastapi import FastAPI
+from fastapi_utils.tasks import repeat_every
 from pydantic import BaseModel
-from hybrid_retriever import HybridRetriever
+from components.hybrid_retriever import HybridRetriever
 import uvicorn
-import os
-import signal
-import streamlit as st
 
-API_KEY = st.secrets["chroma_server_auth_credentials"]
-API_KEY_NAME = "Authorization"
+import logging
+logging.basicConfig(
+    format="%(levelname)s:  %(message)s"
+)
 
 from omegaconf import OmegaConf
-config = OmegaConf.load("backend/config/config.yaml")
+config = OmegaConf.load("config/config.yaml")
 
 class QueryRequest(BaseModel):
     query: str
@@ -22,21 +22,30 @@ class HybridRetrieverAPI:
     def __init__(self):
 
         self.retriever = HybridRetriever(
-            path_docstore=config.paths.docstores.bm25_docstore,
+                path_docstore=config.paths.docstores.bm25_docstore
         )
+
+        self.startup = True
 
         self.app = FastAPI(
             title="HybridRetrieverAPI"
         )
 
+        self._register_retriever_refresher()
         self._initialize_routes()
 
-    @staticmethod
-    def verify_api_key(r: Request):
-        api_key_input = r.headers[API_KEY_NAME]
-        if api_key_input != API_KEY:
-            raise HTTPException(status_code=403, detail="Invalid API Key")
-        return api_key_input
+    def _register_retriever_refresher(self):
+
+        @self.app.on_event("startup")
+        @repeat_every(seconds=60*50) #50 mins
+        def get_retriever():
+            if not self.startup:
+                logging.warning("Refreshing Retriever...")
+                self.retriever = HybridRetriever(
+                    path_docstore=config.paths.docstores.bm25_docstore
+                )
+            self.startup = False
+                
 
     def _initialize_routes(self):
 
@@ -45,7 +54,7 @@ class HybridRetrieverAPI:
             return {"message": "Hybrid Retriever up and running."}
 
         @self.app.post("/retrieve")
-        async def retrieve_docs(request: QueryRequest, api_key: str = Depends(HybridRetrieverAPI.verify_api_key)):
+        async def retrieve_docs(request: QueryRequest):
             retrieved_documents = self.retriever.retrieve(
                 query=request.query,
                 k=request.k,
@@ -55,11 +64,6 @@ class HybridRetrieverAPI:
                 "query": request.query,
                 "res": retrieved_documents
             }
-
-        @self.app.get("/shutdown")
-        def shutdown(api_key: str = Depends(HybridRetrieverAPI.verify_api_key)):
-            os.kill(os.getpid(), signal.SIGTERM)
-            return Response(status_code=200, content="Server shutting down...")
 
     def run(self):
         uvicorn.run(self.app, host="0.0.0.0", port=8080, log_level="info")

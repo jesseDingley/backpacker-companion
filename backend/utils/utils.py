@@ -1,35 +1,52 @@
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+#__import__('pysqlite3')
+#import sys
+#sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 from tqdm import tqdm
 import chromadb
 from chromadb.config import Settings
 from chromadb import Collection
 from typing import List
-import streamlit as st
 from llama_index.core import Document
 from llama_index.core.schema import BaseNode
 from llama_index.core.node_parser import SimpleNodeParser
 from llama_index.core.storage.docstore import SimpleDocumentStore
 
+import google.auth.transport.requests
+import google.oauth2.id_token
+
+from dotenv import load_dotenv
+import os
+
 from omegaconf import OmegaConf
-config = OmegaConf.load("backend/config/config.yaml")
+config = OmegaConf.load("config/config.yaml") #TODO
 
 class Utils:
 
     @staticmethod
-    def load_collection_from_local(name: str = config.collection.name) -> Collection:
-        client = chromadb.HttpClient(
-            host="http://127.0.0.1:8000",
-            settings=Settings(
-                chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthClientProvider",
-                chroma_client_auth_credentials=st.secrets["chroma_server_auth_credentials"]
-            )
-        )
-        client.heartbeat()
-        return client.get_collection(name=name)
+    def init_chroma_client():
 
+        load_dotenv(dotenv_path=".env")
+
+        auth_req = google.auth.transport.requests.Request()
+        audience = os.getenv("CHROMA_SERVICE")
+        id_token = google.oauth2.id_token.fetch_id_token(auth_req, audience)
+
+        chroma_client = chromadb.HttpClient(
+            host=audience,
+            port=443,
+            ssl=True,
+            headers={
+                "Authorization": f"Bearer {id_token}"
+            }
+        )
+
+        assert chroma_client.heartbeat() > 0
+        return chroma_client
+
+    @staticmethod
+    def load_collection_from_client(client, name: str = config.collection.name) -> Collection:
+        return client.get_collection(name=name)
 
 class DocStoreManager:
     """Helper methods for DocStore creation and persistance."""
@@ -85,4 +102,18 @@ class DocStoreManager:
     def load_docstore(persist_path: str):
         return SimpleDocumentStore.from_persist_path(
             persist_path=persist_path
+        )
+    
+    @staticmethod
+    def create_docstore_end_to_end():
+        """Creates and Persists Docstore based on default config."""
+
+        chroma_client = Utils.init_chroma_client()
+        collection = Utils.load_collection_from_client(client=chroma_client)
+
+        nodes = DocStoreManager.create_nodes(collection=collection)
+
+        DocStoreManager.persist_nodes_to_docstore(
+            nodes=nodes, 
+            persist_path=config.paths.docstores.bm25_docstore
         )

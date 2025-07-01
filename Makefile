@@ -5,6 +5,10 @@ create-collection:
 	pip install -e .
 	init-vectordb	
 
+create-docstore:
+	pip install -e .
+	init-docstore
+
 run:
 	streamlit run app.py
 

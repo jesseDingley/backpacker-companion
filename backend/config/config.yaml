@@ -22,4 +22,4 @@ paths:
   ui:
     sidebar: "backend/ui/sidebar.md"
   docstores:
-    bm25_docstore: "/home/docstores/texts-docstore-v2"
+    bm25_docstore: "data/docstores/texts-docstore-v2" 

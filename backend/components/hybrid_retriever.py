@@ -1,11 +1,16 @@
 from llama_index.retrievers.bm25 import BM25Retriever
-from utils import Utils, DocStoreManager
+from utils.utils import Utils, DocStoreManager
 import Stemmer
 import os
 from collections import defaultdict
 from llama_index.core.schema import QueryBundle
 from typing import List, Dict, Any, Tuple
 from chromadb import Collection
+
+import logging
+logging.basicConfig(
+    format="%(levelname)s:  %(message)s"
+)
 
 class VectorRetriever:
     """Vector Retriever using Chroma collection."""
@@ -136,7 +141,8 @@ class HybridRetriever:
         max_docs_plus_children: int = 15,
     ):
         
-        self.collection = Utils.load_collection_from_local()
+        chroma_client = Utils.init_chroma_client()
+        self.collection = Utils.load_collection_from_client(chroma_client)
         
         self.bm25_retriever = CustomBM25Retriever.from_defaults(
             docstore_path=path_docstore,
@@ -159,6 +165,8 @@ class HybridRetriever:
         self.w_vector = w_vector
 
         self.max_docs_plus_children = max_docs_plus_children
+
+        logging.warning("Hybrid Retriever init complete.")
 
     @staticmethod
     def get_documents_ranking(retriever_results: List[Dict[str, Any]]) -> Dict[str, int]:
