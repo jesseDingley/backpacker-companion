@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi_utils.tasks import repeat_every
 from pydantic import BaseModel
 from components.hybrid_retriever import HybridRetriever
 import uvicorn
+import os
+from dotenv import load_dotenv
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 import logging
 logging.basicConfig(
@@ -54,7 +58,12 @@ class HybridRetrieverAPI:
             return {"message": "Hybrid Retriever up and running."}
 
         @self.app.post("/retrieve")
-        async def retrieve_docs(request: QueryRequest):
+        async def retrieve_docs(request: QueryRequest, authorization: str = Header(...)):
+
+            token = authorization.split("Bearer ")[1]
+            if not HybridRetrieverAPI.verify_id_token(token):
+                raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
             retrieved_documents = self.retriever.retrieve(
                 query=request.query,
                 k=request.k,
@@ -64,6 +73,20 @@ class HybridRetrieverAPI:
                 "query": request.query,
                 "res": retrieved_documents
             }
+        
+    @staticmethod
+    def verify_id_token(token: str) -> bool:
+        """Verifies ID Token from Google sign-in."""
+
+        load_dotenv()
+        WEB_CLIENT_ID = os.getenv("WEB_CLIENT_ID")
+
+        try:
+            id_token.verify_oauth2_token(token, requests.Request(), WEB_CLIENT_ID)
+        except ValueError:
+            # Invalid token
+            return False
+        return True
 
     def run(self):
         uvicorn.run(self.app, host="0.0.0.0", port=8080, log_level="info")
