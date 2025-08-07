@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 from google.oauth2 import id_token
 from google.auth.transport import requests
+import threading
 
 import logging
 logging.basicConfig(
@@ -24,6 +25,8 @@ class QueryRequest(BaseModel):
 class HybridRetrieverAPI:
 
     def __init__(self):
+
+        self.process_lock = threading.Lock()
 
         self.retriever = HybridRetriever(
                 path_docstore=config.paths.docstores.bm25_docstore
@@ -43,12 +46,13 @@ class HybridRetrieverAPI:
         @self.app.on_event("startup")
         @repeat_every(seconds=60*50) #50 mins
         def get_retriever():
-            if not self.startup:
-                logging.warning("Refreshing Retriever...")
-                self.retriever = HybridRetriever(
-                    path_docstore=config.paths.docstores.bm25_docstore
-                )
-            self.startup = False
+            with self.process_lock:
+                if not self.startup:
+                    logging.warning("Refreshing Retriever...")
+                    self.retriever = HybridRetriever(
+                        path_docstore=config.paths.docstores.bm25_docstore
+                    )
+                self.startup = False
                 
 
     def _initialize_routes(self):
@@ -60,19 +64,21 @@ class HybridRetrieverAPI:
         @self.app.post("/retrieve")
         async def retrieve_docs(request: QueryRequest, authorization: str = Header(...)):
 
-            token = authorization.split("Bearer ")[1]
-            if not HybridRetrieverAPI.verify_id_token(token):
-                raise HTTPException(status_code=401, detail="Invalid Authorization header")
+            with self.process_lock:
 
-            retrieved_documents = self.retriever.retrieve(
-                query=request.query,
-                k=request.k,
-                threshold=request.threshold,
-            )
-            return {
-                "query": request.query,
-                "res": retrieved_documents
-            }
+                token = authorization.split("Bearer ")[1]
+                if not HybridRetrieverAPI.verify_id_token(token):
+                    raise HTTPException(status_code=401, detail="Invalid Authorization header")
+
+                retrieved_documents = self.retriever.retrieve(
+                    query=request.query,
+                    k=request.k,
+                    threshold=request.threshold,
+                )
+                return {
+                    "query": request.query,
+                    "res": retrieved_documents
+                }
         
     @staticmethod
     def verify_id_token(token: str) -> bool:
