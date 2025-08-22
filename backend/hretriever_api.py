@@ -70,7 +70,7 @@ class HybridRetrieverAPI:
 
 
         @self.app.post("/login")
-        async def login(request: UserDataRequest, authorization: str = Header(...)) -> str:
+        async def login(request: UserDataRequest, authorization: str = Header(...)) -> dict:
 
             # STEP 1: Validate Google ID Token
             token = authorization.split("Bearer ")[1]
@@ -83,7 +83,9 @@ class HybridRetrieverAPI:
             # STEP 3: Sanity Check
             self.verify_jwt_token(jwt_token)
 
-            return jwt_token
+            return {
+                "jwt_token": jwt_token
+            }
 
         @self.app.post("/retrieve")
         async def retrieve_docs(request: QueryRequest, authorization: str = Header(...)) -> dict:
