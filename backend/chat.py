@@ -192,6 +192,8 @@ class Chat(Base):
             st.logout()
             return
 
+        logging.info("Successfully generated JWT token")
+
         return response.json()["jwt_token"]
         
     def write_header(self) -> None:
@@ -418,18 +420,20 @@ class Chat(Base):
     def wait_for_jwt_cookie(self) -> None:
         """Gets JWT token cookie from the cookie manager in order to pass to stream()."""
 
-        jwt_cookie = self.cookie_manager.get(cookie="jwt_token_secure")
+        with st.spinner("Loading..."):
 
-        if jwt_cookie is not None:
-            return self.auth_s.loads(jwt_cookie)["jwt_token"]
+            jwt_cookie = self.cookie_manager.get(cookie="jwt_token_secure")
 
-        if st.session_state["token_tries"] == 10:
-            logging.info("Awaited too long for JWT token to load.")
-            st.logout()
-        st.session_state["token_tries"] += 1
-        time.sleep(1.0)
-        logging.info("Awaiting JWT token...")
-        st.rerun()
+            if jwt_cookie is not None:
+                return self.auth_s.loads(jwt_cookie)["jwt_token"]
+
+            if st.session_state["token_tries"] == 50:
+                logging.info("Awaited too long for JWT token to load.")
+                st.logout()
+            st.session_state["token_tries"] += 1
+            time.sleep(1.0)
+            logging.info("Awaiting JWT token...")
+            st.rerun()
 
     def run_app(self) -> None:
         """
