@@ -447,6 +447,8 @@ class Chat(Base):
 
         if not st.user.is_logged_in:
 
+            logging.info("User logged out.")
+
             if st.session_state["num_interactions"] == 0:
                 try:
                     self.cookie_manager.delete("jwt_token_secure")
@@ -468,6 +470,8 @@ class Chat(Base):
                 st.login("google")
 
         else:
+
+            logging.info("User logged in.")
 
             if self.user_just_logged_in():  
                 if self.debug:
