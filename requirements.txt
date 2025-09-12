@@ -4,6 +4,7 @@ langchain-core==0.3.72
 langchain-community==0.3.22
 langchain-huggingface==0.1.2
 langchain-chroma==0.2.4
+langchain-ollama==0.3.6
 flashrank==0.2.8
 omegaconf==2.3.0
 huggingface-hub==0.34.1
