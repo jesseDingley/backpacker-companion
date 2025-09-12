@@ -7,7 +7,15 @@ from langchain_core.documents import Document
 from typing import List, Literal, Dict, Any
 import requests
 import streamlit as st
-import subprocess
+import os
+from time import time
+from requests import HTTPError
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 class Retriever:
     """Defines different retrievers.
@@ -40,10 +48,7 @@ class Retriever:
         instance.threshold = threshold
         instance.rerank = rerank
         instance.rerank_top_k = rerank_top_k
-        instance.hretriever_endpoint = "http://" + st.secrets["chroma_ip"] + ":8080/retrieve"
-        instance.hretriever_endpoint_headers = {
-            "Authorization": st.secrets["chroma_server_auth_credentials"]
-        }
+        instance.hretriever_endpoint = os.path.join(st.secrets["secrets"]["retriever_endpoint"], "retrieve")
 
         return instance.initialize_retriever()
 
@@ -86,36 +91,45 @@ class Retriever:
     @staticmethod
     def initialize_hybrid_retriever_chain(
         hretriever_endpoint: str, 
-        hretriever_endpoint_headers: dict,
         k: int,
         threshold: float,
         launch_api_on_call: bool = False,
     ) -> VectorStoreRetriever:
         """Initializes hybrid retriever chain."""
-
-        if launch_api_on_call:
-            subprocess.run([
-                "gcloud", "compute", "ssh", "jessedingley@chroma-instance", 
-                "--zone=europe-west1-d", 
-                "--command='cd /home/jessedingley/playground && sh launch_api.sh'"
-            ])
-        
+     
         @chain
         def retriever(fields: Dict[str, Any]) -> List[Document]:
 
             query = fields["rephrased_input"]
 
-            response = requests.post(
-                hretriever_endpoint, 
-                json={
-                    "query": query,
-                    "k": k,
-                    "threshold": threshold,
-                }, 
-                headers=hretriever_endpoint_headers
-            )
+            t0 = time()
 
-            assert response.status_code == 200, "API Call Failed."
+            def call_api():
+                return requests.post(
+                    hretriever_endpoint, 
+                    json={
+                        "query": query,
+                        "k": k,
+                        "threshold": threshold,
+                    }, 
+                    headers={
+                        "Authorization": f"Bearer {fields['jwt_token']}"
+                    }
+                )
+            
+            try:
+                response = call_api()
+                assert response.status_code == 200, f"First attempt failed with {response.status_code}"
+            except (AssertionError, requests.exceptions.RequestException):
+                try:
+                    response = call_api()
+                    assert response.status_code == 200,  f"Second attempt failed with {response.status_code}"
+                except:
+                    if response.status_code == 403:
+                        raise HTTPError("403")
+
+            t1 = time()
+            logging.info(f"Retrieval time: {t1 - t0:.2f} seconds")
 
             retrieved_docs = response.json()["res"]
 
@@ -137,7 +151,6 @@ class Retriever:
 
         return Retriever.initialize_hybrid_retriever_chain(
             hretriever_endpoint=self.hretriever_endpoint,
-            hretriever_endpoint_headers=self.hretriever_endpoint_headers,
             k=self.k,
             threshold=self.threshold
         )

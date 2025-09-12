@@ -103,13 +103,14 @@ class Prompts(Base):
 
         REPHRASE_SYS_PROMPT = (
             "### TASK\n"
-            "Your task is to reformulate the latest user input into a **standalone** question "
+            "Your task is to reformulate the latest user input (if it is a question or request) into a **standalone** question "
             "or statement that can be understood **without relying on the chat history**. "
 
             "### INSTRUCTIONS\n"
             "1. Avoid answering, commenting, or providing any explanation.\n"
             "2. If the input is already standalone, return it unchanged.\n"
             "3. If the input is vague (e.g., 'And what else?'), **make it explicit based on the conversation.**\n"
+            "4. Importantly, if the input is not asking / demanding / requesting anything, return it unchanged."
             
             "### EXAMPLES\n"
             "- Input: 'What about flights?'\n"

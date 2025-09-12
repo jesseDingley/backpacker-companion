@@ -1,6 +1,31 @@
 # Backpacker Companion - Deployed Version
 
-[Live Streamlit link](https://backpacker-companion.streamlit.app)
+[Streamlit link](https://backpacker-companion.streamlit.app)
+
+## About
+
+Travel & Backpacking Companion RAG Chat-Bot deployed as a Streamlit application.
+
+The RAG system leverages chunks of blogs scraped from http://thebrokebackpacker.com/, which are saved to a Chroma collection deployed to a Google Cloud Run service.
+
+A hybrid retriever is used (BM25 + Vector Search), which is deployed to another Google Cloud Run service. The BM25 component of the retriever leverages the plain text blog chunks, and the Vector Search component is the Chroma collection service.
+
+User authentication is managed by Sign-in with Google and JWT tokens that are generated server-side to allow users to stay logged-in for longer, since Google ID tokens expire within one hour.
+
+**Important Notes**:  
+
+- *The code in this branch is used in production*
+- *You cannot run this app locally unless you also:*
+    - Have a HF Inference Endpoint / Ollama model downloaded
+    - Deploy Chroma as a Cloud Run service 
+    - Create & Populate a collection to the Chroma service.
+    - Deploy a (hybrid) retriever to a Cloud Run service.
+
+## Install & Run 
+
+```
+$ make rerun
+```
 
 
 ## Deploying Chroma
@@ -17,34 +42,23 @@ $ make deploy-chroma \
 
 See https://github.com/HerveMignot/chromadb-on-gcp for further details.
 
+**NOTE:** This only deploys Chroma as a service, it does not create any collections nor add any documents.
+
 ## Populating Chroma Collection
 
-Run `$ make create-collection`
-
-## How to run
-
-If the repo is not currently deployed to streamlit and you wish to test it yourself you will need to:
-
-1. Follow [this](https://docs.trychroma.com/deployment/gcp) guide to deploy Chroma to GCP, including the "Authentication with GCP" section. Afterwards, you should have `glcoud-credentials.json`, `chroma.tfvars`, `main.tf`, `terraform.tfstate` files at the root. Don't hesitate to refer back to the Makefile for deploy and destroy commands.
-
-2. At the root of the repository, create a `.streamlit/secrets.toml` file like the following:
+Run
 
 ```
-HUGGINGFACE_API_KEY = "<your-api-key>"
-chroma_server_auth_credentials = "<your-token>"
-chroma_ip = "<your-vm-ip-returned-by-terraform>"
+$ make create-collection
 ```
 
-3. `$ make install` to install the package
+to scrape, chunk, vectorize and add blogs to previously created Chroma service.
 
-4. `$ init-vectordb` to create the Chroma DB, but you might want to limit the number of URLs to be processed, otherwise the process might take 3-4 hours.
+## Deploying Hybrid Retriever
 
-5. `$ make run` to open the streamlit app.
+See `hybrid-retriever` branch.
+
 
 ## Room for improvement.
 
-- Improve Sys Prompt.
-- Rephrased input is computed twice.
-- Test hybrid vector / kw search
-- (Include full length blogs)
-- Fix multiple header appearances (like in https://www.thebrokebackpacker.com/travel-insurance-mexico/)
+- Add step to check whether retrieval is necessary / make filter stricter

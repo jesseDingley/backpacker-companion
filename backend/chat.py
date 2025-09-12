@@ -3,42 +3,26 @@ import logging
 import time
 import re
 import random
+import os
+import requests
+from requests import HTTPError
+from PIL import Image
 
 from backend.base import Base
 from backend.config.const import CST
 from backend.components.prompts import Prompts
 from backend.components.retriever import Retriever
 from backend.components.parsers import Parsers
-from langchain_huggingface import HuggingFaceEndpoint
+
 from langchain_chroma import Chroma
-from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.schema.output_parser import StrOutputParser
-from huggingface_hub import login
-from PIL import Image
+
+from itsdangerous import URLSafeSerializer
 
 import streamlit as st
-
-@st.cache_resource
-def login_hf():
-    login(token=st.secrets["HUGGINGFACE_API_KEY"])
-
-@st.cache_resource
-def init_llm(llm_endpoint):
-    return HuggingFaceEndpoint(
-        endpoint_url=llm_endpoint,
-        task="text-generation",
-        max_new_tokens=CST.MAX_NEW_TOKENS,
-        temperature=CST.TEMPERATURE,
-        repetition_penalty=1.3,
-        callbacks=[StreamingStdOutCallbackHandler()],
-        streaming=True,
-        stop_sequences=[
-            "<unk>", "</s>", "Assistant", "User"
-        ],
-    )
+import extra_streamlit_components as stx
 
 class Chat(Base):
     """
@@ -66,15 +50,11 @@ class Chat(Base):
                 search_type="vector", vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD
             )
 
-        login_hf()
-
-        llm = init_llm(llm_endpoint=self.LLM_ENDPOINT)
-
         prompts = Prompts()
 
         # chain that stuffs documents into context
         combine_docs_chain = create_stuff_documents_chain(
-            llm=llm, prompt=prompts.qa_chat_prompt_template
+            llm=self.llm, prompt=prompts.qa_chat_prompt_template
         )
 
         self.qa = create_retrieval_chain(
@@ -83,11 +63,11 @@ class Chat(Base):
 
         self.off_topic_verification_chain = (
             prompts.off_topic_verification_prompt_template
-            | llm
+            | self.llm
             | Parsers.off_topic_verification_parser
         )
 
-        self.rephrase_chain = prompts.rephrase_chat_prompt_template | llm | StrOutputParser()
+        self.rephrase_chain = prompts.rephrase_chat_prompt_template | self.llm | StrOutputParser()
 
         self.assistant_icon = Image.open(self.paths["ASSISTANT_ICON"])
 
@@ -99,6 +79,9 @@ class Chat(Base):
 
         self.MESSAGE_ALIGNMENT = self.config.app.ui.message_alignment
         self.MESSAGE_BG_COLOR = self.config.app.ui.message_bg_color
+
+        self.auth_s = URLSafeSerializer(st.secrets["secrets"]["cookies_secret"], "rag-backpacker-companion-auth")
+        self.cookie_manager = stx.CookieManager()
 
     @staticmethod
     def diversify_vocabulary(current_chunk: str) -> str:
@@ -176,6 +159,51 @@ class Chat(Base):
         """
         return chat_history[len(chat_history) - 2*limit:]
 
+    @staticmethod
+    def get_jwt_session_token() -> str:
+        """
+        Gets JWT session token (valid for 48h). To be ran after Google Sign-in.
+
+        Returns:
+            str: JWT token.
+        """
+
+        endpoint = os.path.join(
+            st.secrets["secrets"]["retriever_endpoint"],
+            'login'
+        )
+
+        response = requests.post(
+            endpoint, 
+            json={
+                "user_data": {
+                    "sub": st.user["sub"],
+                    "email": st.user["email"],
+                    "name": st.user["name"]
+                }
+            }, 
+            headers={
+                "Authorization": f"Bearer {st.user['id_token']}"
+            }
+        )
+
+        if response.status_code != 200:
+            st.logout()
+            return
+
+        return response.json()["jwt_token"]
+        
+    def write_header(self) -> None:
+        """Writes header to streamlit page."""
+        st.image(self.paths["TITLE_IMAGE"], width=100)
+        st.title(self.NAME)
+        st.caption(
+            f"{self.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
+        )
+        st.caption(
+            f"The first reply from {self.NAME} might take a minute or two if the server has been asleep for a while."
+        )
+
     def write_human_msg(self, msg: str) -> None:
         """
         Writes human message to Streamlit app
@@ -222,12 +250,6 @@ class Chat(Base):
                     {"input": query, "chat_history": chat_history}
                 )
 
-                if self.debug:
-                    print("\n<<<BEGIN OFF TOPIC JSON:>>>")
-                    print(output_json)
-                    print("<<<END OFF TOPIC JSON:>>>\n")
-
-
                 is_off_topic = output_json["is_off_topic"].lower().strip()
 
                 if is_off_topic == "yes":
@@ -267,7 +289,7 @@ class Chat(Base):
 
         self.formatted_output["answer"] = refusal_message
 
-    def stream(self, query: str, rephrased_query: str, chat_history: List[Tuple[str, str]]) -> Iterator[str]:
+    def stream(self, query: str, rephrased_query: str, chat_history: List[Tuple[str, str]], jwt_token: str) -> Iterator[str]:
         """
         Streams LLM response given a query and chat history.
 
@@ -275,6 +297,7 @@ class Chat(Base):
             query (str): user query
             rephrased_query (str): rephrased user query based on history for retriever.
             chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
+            jwt_token (str): JWT Token obtained from user login.
 
         Returns:
             Iterable[str]: iterator on llm response chunks
@@ -287,45 +310,60 @@ class Chat(Base):
         starts_with_ai = False
         self.formatted_output = {}
         acc_answer = ""
-        for chunk in self.qa.stream(
-            input={"input": query, "rephrased_input": rephrased_query, "chat_history": Chat.format_chat_history(chat_history)}
-        ):
 
-            if input_chunk := chunk.get("input"):
-                self.formatted_output["input"] = input_chunk
+        try:
 
-            if context_chunk := chunk.get("context"):
-                self.formatted_output["context"] = context_chunk
+            for chunk in self.qa.stream(
+                input={
+                    "input": query, 
+                    "rephrased_input": rephrased_query, 
+                    "chat_history": Chat.format_chat_history(chat_history),
+                    "jwt_token": jwt_token,
+                }
+            ):
 
-            if answer_chunk := chunk.get("answer"):
+                if input_chunk := chunk.get("input"):
+                    self.formatted_output["input"] = input_chunk
 
-                if not started_streaming:
+                if context_chunk := chunk.get("context"):
+                    self.formatted_output["context"] = context_chunk
 
-                    # remove "AI: " from start of generation
-                    if answer_chunk.strip() in ["", "\n"]:
-                        continue
-                    if answer_chunk.strip() == "AI":
-                        starts_with_ai = True
-                        continue
-                    if starts_with_ai and answer_chunk.strip() == ":":
-                        starts_with_ai = False
-                        continue
+                if answer_chunk := chunk.get("answer"):
 
-                    started_streaming = True
-                    self.ai_msg_placeholder.empty()
+                    if not started_streaming:
 
-                # end stream
-                if answer_chunk == "</s>":
-                    break
+                        # remove "AI: " from start of generation
+                        if answer_chunk.strip() in ["", "\n"]:
+                            continue
+                        if answer_chunk.strip() == "AI":
+                            starts_with_ai = True
+                            continue
+                        if starts_with_ai and answer_chunk.strip() == ":":
+                            starts_with_ai = False
+                            continue
 
-                # diversify vocab
-                answer_chunk = Chat.diversify_vocabulary(answer_chunk)
+                        started_streaming = True
+                        self.ai_msg_placeholder.empty()
 
-                # escape dollar sign for markdown
-                answer_chunk = Chat.esc_dollar_sign(answer_chunk)
+                    # end stream
+                    if answer_chunk == "</s>":
+                        break
 
-                acc_answer += answer_chunk
-                yield answer_chunk
+                    # diversify vocab
+                    answer_chunk = Chat.diversify_vocabulary(answer_chunk)
+
+                    # escape dollar sign for markdown
+                    answer_chunk = Chat.esc_dollar_sign(answer_chunk)
+
+                    acc_answer += answer_chunk
+                    yield answer_chunk
+
+        except HTTPError as e:
+
+            if '403' in str(e):
+                st.logout()
+            else:
+                raise
 
         if "context" in self.formatted_output:
 
@@ -366,112 +404,189 @@ class Chat(Base):
 
         self.formatted_output["answer"] = acc_answer
 
+    def user_just_logged_in(self) -> bool:
+        """Returns True if user just logged in."""
+        #user_id_is_new = abs(int(datetime.now(timezone.utc).timestamp()) - int(st.user["iat"])) <= 10
+        return (
+            (self.cookie_manager.get("jwt_token_secure") is None) 
+            and (st.user.is_logged_in)
+            and (st.session_state["num_interactions"] == 1)
+        )
+    
+    @st.fragment
+    def wait_for_jwt_cookie(self) -> None:
+        """Gets JWT token cookie from the cookie manager in order to pass to stream()."""
+
+        jwt_cookie = self.cookie_manager.get(cookie="jwt_token_secure")
+
+        if jwt_cookie is not None:
+            return self.auth_s.loads(jwt_cookie)["jwt_token"]
+
+        if st.session_state["token_tries"] == 5:
+            st.logout()
+        st.session_state["token_tries"] += 1
+        time.sleep(0.5)
+        st.rerun()
+
     def run_app(self) -> None:
         """
         Run streamlit app
         """
 
-        # Header
-        st.image(self.paths["TITLE_IMAGE"], width=100)
-        st.title(self.NAME)
-        st.caption(
-            f"{self.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
-        )
+        #st.write("Current cookies:", self.cookie_manager.get_all())
 
-        # Sidebar 
-        with st.sidebar:
-            if st.button("New Chat", use_container_width=True, type="primary"):
-                for key in st.session_state.keys():
-                    del st.session_state[key]
-            st.markdown(self.sidebar_content)
+        if not "num_interactions" in st.session_state:
+            st.session_state["num_interactions"] = -1
+        st.session_state["num_interactions"] += 1
 
-        # Init chat history
-        if not "chat_history" in st.session_state:
-            st.session_state["chat_history"] = [
-                ("assistant", f"Hey there! {self.NAME} here, how can I help you?")
-            ]
+        if not "token_tries" in st.session_state:
+            st.session_state["token_tries"] = 0
 
-        # Init data sources to display on each assistant message
-        if not "references" in st.session_state:
-            st.session_state["references"] = [""]
+        #st.write("Num Interactions", st.session_state["num_interactions"])
+        #st.write("Token tries", st.session_state["token_tries"])
 
-        # Display whole chat history
-        for role_msg_tuple, reference in zip(
-            st.session_state["chat_history"], st.session_state["references"]
-        ):
-            role = role_msg_tuple[0]
-            msg = role_msg_tuple[1]
-            if role == "user":
-                self.write_human_msg(msg)
-            else:
-                with st.chat_message(role, avatar=self.assistant_icon):
-                    st.empty()
-                    st.write(msg + reference)
+        if not st.user.is_logged_in:
 
-        # New message from User
-        if prompt := st.chat_input():
+            if st.session_state["num_interactions"] == 0:
+                try:
+                    self.cookie_manager.delete("jwt_token_secure")
+                except:
+                    pass
 
-            self.write_human_msg(prompt)
+            assert self.cookie_manager.get(cookie="jwt_token_secure") is None
 
-            # Generate and stream response from Assistant
-            with st.chat_message("assistant", avatar=self.assistant_icon):
+            # Header
+            self.write_header()
 
-                self.ai_msg_placeholder = st.empty()
-                self.ai_msg_placeholder.write("Hmm...")
+            # Log user in with Google
+            if st.button(
+                "![](/backend/images/google-icon.png) Sign in with Google", 
+                icon=":material/login:", 
+                type="primary", 
+                use_container_width=True
+            ):
+                st.login("google")
 
-                rephrased_input = self.rephrase_chain.invoke({
-                    "input": prompt, 
-                    "chat_history": Chat.format_chat_history(st.session_state["chat_history"])
-                })
+        else:
 
-                refusal_message = self.is_query_off_topic(
-                    rephrased_input, st.session_state["chat_history"]
-                )
-
+            if self.user_just_logged_in():  
                 if self.debug:
-                    print(f"\nRefusal message: <<<{refusal_message}>>>")
-                    print("\n\n<<<BEGIN Rephrased Input>>>")
-                    print(rephrased_input)
-                    print("<<<END Rephrased Input>>>\n\n")
-                    
+                    logging.info("User just logged in. Generating jwt.\n")
+                jwt_token = Chat.get_jwt_session_token()
+                encrypted_jwt_token = self.auth_s.dumps({"jwt_token": jwt_token})
+                self.cookie_manager.set("jwt_token_secure", encrypted_jwt_token)
 
-                if refusal_message is not None:
+            jwt_token_decrypted = self.wait_for_jwt_cookie()
 
-                    st.write_stream(self.stream_refusal_message(refusal_message))
+            assert self.cookie_manager.get(cookie="jwt_token_secure") is not None
 
+            # Header
+            self.write_header()
+
+            # Sidebar 
+            with st.sidebar:
+                if st.button("New Chat", use_container_width=True, type="primary"):
+                    for key in st.session_state.keys():
+                        del st.session_state[key]
+
+                if st.button("Sign out", use_container_width=True):
+                    st.logout()
+
+                st.markdown(self.sidebar_content)
+
+            # Init chat history
+            if not "chat_history" in st.session_state:
+                st.session_state["chat_history"] = [
+                    ("assistant", f"Hey there {st.user['name'].split(' ')[0]}! {self.NAME} here, how can I help you?")
+                ]
+
+            # Init data sources to display on each assistant message
+            if not "references" in st.session_state:
+                st.session_state["references"] = [""]
+
+            # Display whole chat history
+            for role_msg_tuple, reference in zip(
+                st.session_state["chat_history"], st.session_state["references"]
+            ):
+                role = role_msg_tuple[0]
+                msg = role_msg_tuple[1]
+                if role == "user":
+                    self.write_human_msg(msg)
                 else:
+                    with st.chat_message(role, avatar=self.assistant_icon):
+                        st.empty()
+                        st.write(msg + reference)
 
-                    st.write_stream(
-                        self.stream(
-                            prompt,
-                            rephrased_input,
-                            st.session_state["chat_history"],
-                        )
+            # New message from User
+            if prompt := st.chat_input():
+
+                self.write_human_msg(prompt)
+
+                # Generate and stream response from Assistant
+                with st.chat_message("assistant", avatar=self.assistant_icon):
+
+                    self.ai_msg_placeholder = st.empty()
+                    self.ai_msg_placeholder.write("Hmm...")
+
+                    refusal_message = self.is_query_off_topic(
+                        prompt, st.session_state["chat_history"]
                     )
 
-            # Update chat history
-            st.session_state["chat_history"].append(("user", prompt))
-            st.session_state["chat_history"].append(
-                ("assistant", self.formatted_output["answer"])
-            )
-            st.session_state["references"].append("")
-            if "source" in self.formatted_output:
-                st.session_state["references"].append(self.formatted_output["source"])
-            else:
+                    if self.debug:
+                        print('\n\n')
+                        if refusal_message is not None:
+                            logging.info("Is off topic: True")
+                            logging.info(f"Refusal message: <<<{refusal_message}>>>")
+                        else:
+                            logging.info("Is off topic: False")
+                        print('\n')
+
+                    if refusal_message is not None:
+
+                        st.write_stream(self.stream_refusal_message(refusal_message))
+
+                    else:
+
+                        rephrased_input = self.rephrase_chain.invoke({
+                            "input": prompt, 
+                            "chat_history": Chat.format_chat_history(st.session_state["chat_history"])
+                        })
+
+                        if self.debug:
+                            print("\n\n")   
+                            logging.info(f"Rephrased Input: {rephrased_input}\n")
+
+                        st.write_stream(
+                            self.stream(
+                                prompt,
+                                rephrased_input,
+                                st.session_state["chat_history"],
+                                jwt_token_decrypted,
+                            )
+                        )
+
+                # Update chat history
+                st.session_state["chat_history"].append(("user", prompt))
+                st.session_state["chat_history"].append(("assistant", self.formatted_output["answer"]))
+
                 st.session_state["references"].append("")
-
-            # Debug statements
-            if self.debug:
-                if "context" in self.formatted_output:
-                    print("\n\n")
-                    print("=============")
-                    for i, doc in enumerate(self.formatted_output["context"]):
-                        print(f"DOCUMENT {i}: ")
-
-                        print("<---")
-                        print(doc)
-                        print("--->")
-                    print("=============")
-                    print("\n\n")
+                if "source" in self.formatted_output:
+                    st.session_state["references"].append(self.formatted_output["source"])
                 else:
-                    print("\n\nNO DOCUMENTS RETRIEVED")
+                    st.session_state["references"].append("")
+
+                # Debug statements
+                if self.debug:
+                    if "context" in self.formatted_output:
+                        print("\n\n")
+                        print("=============")
+                        for i, doc in enumerate(self.formatted_output["context"]):
+                            print(f"DOCUMENT {i}: ")
+
+                            print("<---")
+                            print(doc)
+                            print("--->")
+                        print("=============")
+                        print("\n\n")
+                    else:
+                        print("\n\nNO DOCUMENTS RETRIEVED")
