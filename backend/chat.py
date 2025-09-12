@@ -188,6 +188,7 @@ class Chat(Base):
         )
 
         if response.status_code != 200:
+            logging.info("Server login request failed.")
             st.logout()
             return
 
@@ -423,6 +424,7 @@ class Chat(Base):
             return self.auth_s.loads(jwt_cookie)["jwt_token"]
 
         if st.session_state["token_tries"] == 5:
+            logging.info("Awaited too long for JWT token to load.")
             st.logout()
         st.session_state["token_tries"] += 1
         time.sleep(0.5)
