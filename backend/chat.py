@@ -423,11 +423,12 @@ class Chat(Base):
         if jwt_cookie is not None:
             return self.auth_s.loads(jwt_cookie)["jwt_token"]
 
-        if st.session_state["token_tries"] == 5:
+        if st.session_state["token_tries"] == 10:
             logging.info("Awaited too long for JWT token to load.")
             st.logout()
         st.session_state["token_tries"] += 1
-        time.sleep(0.5)
+        time.sleep(1.0)
+        logging.info("Awaiting JWT token...")
         st.rerun()
 
     def run_app(self) -> None:
