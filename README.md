@@ -1,16 +1,18 @@
-# Backpacker Companion - Deployed Version
+# Backpacker Companion
 
-[Streamlit link](https://backpacker-companion.streamlit.app)
+Travel & Backpacking companion RAG Chatbot deployed as a Streamlit web application.
+
+[Web App link](https://backpacker-companion.streamlit.app)
+
+*Note:* may not be live.
 
 ## About
 
-Travel & Backpacking Companion RAG Chat-Bot deployed as a Streamlit application.
+The RAG system leverages chunks of blogs scraped from [The Broke Backpacker](http://thebrokebackpacker.com/), which are saved to a Chroma collection deployed to GCP as a Cloud Run service.
 
-The RAG system leverages chunks of blogs scraped from http://thebrokebackpacker.com/, which are saved to a Chroma collection deployed to a Google Cloud Run service.
+Hybrid retrieval (BM25 + Vector Search) is implemented, for which a custom retriever is deployed to another Cloud Run service. The BM25 component of the retriever leverages the plain text blog chunks, and the Vector Search component is the Chroma service.
 
-A hybrid retriever is used (BM25 + Vector Search), which is deployed to another Google Cloud Run service. The BM25 component of the retriever leverages the plain text blog chunks, and the Vector Search component is the Chroma collection service.
-
-User authentication is managed by Sign-in with Google and JWT tokens that are generated server-side to allow users to stay logged-in for longer, since Google ID tokens expire within one hour.
+User authentication is managed by Sign-in with Google and users will be forcefully logged out after one hour (Google ID Token expiry time).
 
 **Important Notes**:  
 
@@ -56,9 +58,11 @@ to scrape, chunk, vectorize and add blogs to previously created Chroma service.
 
 ## Deploying Hybrid Retriever
 
-See `hybrid-retriever` branch.
+See `hybrid-retriever-no-jwt` branch.
 
 
 ## Room for improvement.
 
 - Add step to check whether retrieval is necessary / make filter stricter
+- Remove all URLs from response content
+- “I don't have personal experiences or opinions that can help with avoiding specific places.“ add new instructions to prompt template to negate this.
