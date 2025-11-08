@@ -118,6 +118,24 @@ def wake_up_server() -> None:
         
         sleep(5)
 
+@st.cache_resource(show_spinner="Warming up LLM endpoint.")
+def wake_up_llm_endpoint() -> None:
+    """Wakes up HF LLM endpoint."""
+
+    while True:
+
+        response = requests.get(
+            st.secrets["secrets"]["llm_endpoint"],
+            headers={
+                "Authorization": f"Bearer {st.secrets['secrets']['huggingface_api_key']}"
+            }
+        )
+
+        if response.status_code == 200:
+            return
+
+        sleep(5)
+
 class Base:
     """
     Base class that defines useful attributes for the repo and runs pre-chat functions.
@@ -169,6 +187,9 @@ class Base:
         self.llm = init_llm(llm=self.LLM_ENDPOINT)
 
         wake_up_server()
+
+        if os.environ.get("ENV") != "dev":
+            wake_up_llm_endpoint()
 
         logging.basicConfig(
             level=logging.INFO,
