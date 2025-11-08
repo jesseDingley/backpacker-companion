@@ -93,7 +93,6 @@ class Retriever:
         hretriever_endpoint: str, 
         k: int,
         threshold: float,
-        launch_api_on_call: bool = False,
     ) -> VectorStoreRetriever:
         """Initializes hybrid retriever chain."""
      
@@ -113,7 +112,7 @@ class Retriever:
                         "threshold": threshold,
                     }, 
                     headers={
-                        "Authorization": f"Bearer {fields['jwt_token']}"
+                        "Authorization": f"Bearer {fields['id_token']}"
                     }
                 )
             
@@ -125,8 +124,8 @@ class Retriever:
                     response = call_api()
                     assert response.status_code == 200,  f"Second attempt failed with {response.status_code}"
                 except:
-                    if response.status_code == 403:
-                        raise HTTPError("403")
+                    if response.status_code in [401, 403]:
+                        raise HTTPError(str(response.status_code))
 
             t1 = time()
             logging.info(f"Retrieval time: {t1 - t0:.2f} seconds")

@@ -3,8 +3,6 @@ import logging
 import time
 import re
 import random
-import os
-import requests
 from requests import HTTPError
 from PIL import Image
 
@@ -19,10 +17,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.schema.output_parser import StrOutputParser
 
-from itsdangerous import URLSafeSerializer
-
 import streamlit as st
-import extra_streamlit_components as stx
 
 class Chat(Base):
     """
@@ -79,9 +74,6 @@ class Chat(Base):
 
         self.MESSAGE_ALIGNMENT = self.config.app.ui.message_alignment
         self.MESSAGE_BG_COLOR = self.config.app.ui.message_bg_color
-
-        self.auth_s = URLSafeSerializer(st.secrets["secrets"]["cookies_secret"], "rag-backpacker-companion-auth")
-        self.cookie_manager = stx.CookieManager()
 
     @staticmethod
     def diversify_vocabulary(current_chunk: str) -> str:
@@ -158,43 +150,6 @@ class Chat(Base):
             List[Tuple[str, str]]: snipped chat history.
         """
         return chat_history[len(chat_history) - 2*limit:]
-
-    @staticmethod
-    def get_jwt_session_token() -> str:
-        """
-        Gets JWT session token (valid for 48h). To be ran after Google Sign-in.
-
-        Returns:
-            str: JWT token.
-        """
-
-        endpoint = os.path.join(
-            st.secrets["secrets"]["retriever_endpoint"],
-            'login'
-        )
-
-        response = requests.post(
-            endpoint, 
-            json={
-                "user_data": {
-                    "sub": st.user["sub"],
-                    "email": st.user["email"],
-                    "name": st.user["name"]
-                }
-            }, 
-            headers={
-                "Authorization": f"Bearer {st.user['id_token']}"
-            }
-        )
-
-        if response.status_code != 200:
-            logging.info("Server login request failed.")
-            st.logout()
-            return
-
-        logging.info("Successfully generated JWT token")
-
-        return response.json()["jwt_token"]
         
     def write_header(self) -> None:
         """Writes header to streamlit page."""
@@ -292,7 +247,7 @@ class Chat(Base):
 
         self.formatted_output["answer"] = refusal_message
 
-    def stream(self, query: str, rephrased_query: str, chat_history: List[Tuple[str, str]], jwt_token: str) -> Iterator[str]:
+    def stream(self, query: str, rephrased_query: str, chat_history: List[Tuple[str, str]], id_token: str) -> Iterator[str]:
         """
         Streams LLM response given a query and chat history.
 
@@ -300,7 +255,7 @@ class Chat(Base):
             query (str): user query
             rephrased_query (str): rephrased user query based on history for retriever.
             chat_history (List[Tuple[str, str]]): chat history like [("user": msg) -> ("assistant": response) -> ...]
-            jwt_token (str): JWT Token obtained from user login.
+            id_token (str): Google ID Token obtained from user login.
 
         Returns:
             Iterable[str]: iterator on llm response chunks
@@ -321,7 +276,7 @@ class Chat(Base):
                     "input": query, 
                     "rephrased_input": rephrased_query, 
                     "chat_history": Chat.format_chat_history(chat_history),
-                    "jwt_token": jwt_token,
+                    "id_token": id_token,
                 }
             ):
 
@@ -363,7 +318,7 @@ class Chat(Base):
 
         except HTTPError as e:
 
-            if '403' in str(e):
+            if '403' in str(e) or '401' in str(e):
                 st.logout()
             else:
                 raise
@@ -407,62 +362,14 @@ class Chat(Base):
 
         self.formatted_output["answer"] = acc_answer
 
-    def user_just_logged_in(self) -> bool:
-        """Returns True if user just logged in."""
-        #user_id_is_new = abs(int(datetime.now(timezone.utc).timestamp()) - int(st.user["iat"])) <= 10
-        return (
-            (self.cookie_manager.get("jwt_token_secure") is None) 
-            and (st.user.is_logged_in)
-            and (st.session_state["num_interactions"] == 1)
-        )
-    
-    @st.fragment
-    def wait_for_jwt_cookie(self) -> None:
-        """Gets JWT token cookie from the cookie manager in order to pass to stream()."""
-
-        with st.spinner("Loading..."):
-
-            jwt_cookie = self.cookie_manager.get(cookie="jwt_token_secure")
-
-            if jwt_cookie is not None:
-                return self.auth_s.loads(jwt_cookie)["jwt_token"]
-
-            if st.session_state["token_tries"] == 50:
-                logging.info("Awaited too long for JWT token to load.")
-                st.logout()
-            st.session_state["token_tries"] += 1
-            time.sleep(1.0)
-            logging.info("Awaiting JWT token...")
-            st.rerun()
-
     def run_app(self) -> None:
         """
         Run streamlit app
         """
 
-        #st.write("Current cookies:", self.cookie_manager.get_all())
-
-        if not "num_interactions" in st.session_state:
-            st.session_state["num_interactions"] = -1
-        st.session_state["num_interactions"] += 1
-
-        if not "token_tries" in st.session_state:
-            st.session_state["token_tries"] = 0
-
-        #st.write("Num Interactions", st.session_state["num_interactions"])
-        #st.write("Token tries", st.session_state["token_tries"])
-
         if not st.user.is_logged_in:
 
             logging.info("User logged out.")
-
-            if st.session_state["num_interactions"] == 0:
-                try:
-                    self.cookie_manager.delete("jwt_token_secure")
-                except:
-                    pass
-
-            assert self.cookie_manager.get(cookie="jwt_token_secure") is None
 
             # Header
             self.write_header()
@@ -479,17 +386,6 @@ class Chat(Base):
         else:
 
             logging.info("User logged in.")
-
-            if self.user_just_logged_in():  
-                if self.debug:
-                    logging.info("User just logged in. Generating jwt.\n")
-                jwt_token = Chat.get_jwt_session_token()
-                encrypted_jwt_token = self.auth_s.dumps({"jwt_token": jwt_token})
-                self.cookie_manager.set("jwt_token_secure", encrypted_jwt_token)
-
-            jwt_token_decrypted = self.wait_for_jwt_cookie()
-
-            assert self.cookie_manager.get(cookie="jwt_token_secure") is not None
 
             # Header
             self.write_header()
@@ -572,7 +468,7 @@ class Chat(Base):
                                 prompt,
                                 rephrased_input,
                                 st.session_state["chat_history"],
-                                jwt_token_decrypted,
+                                st.user["id_token"],
                             )
                         )
 
