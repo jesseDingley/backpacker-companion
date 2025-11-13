@@ -1,4 +1,4 @@
-from backend.loader import GuideURLLoader
+from backend.components.loader import GuideURLLoader
 
 test_guide_url_loader = GuideURLLoader(urls=[])
 
@@ -93,7 +93,6 @@ def test_tag_page_content():
     """
     Tests tag_page_content()
     """
-    print(test_guide_url_loader.tag_page_content(sample_page_content, headers))
     assert (
         test_guide_url_loader.tag_page_content(sample_page_content, headers)
         == sample_page_content_w_tags

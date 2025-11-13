@@ -1,12 +1,13 @@
-streamlit==1.36.0
-watchdog==4.0.1
-tqdm==4.66.4
-langchain==0.2.11
-langchain-community==0.2.10
-langchain-huggingface==0.0.3
-langchain-chroma==0.1.2
-newspaper3k==0.2.8
-lxml_html_clean==0.1.1
-Unidecode==1.3.8
-chromadb==0.5.5
-pytest==8.3.2
+Authlib==1.6.0
+streamlit==1.46.1
+langchain==0.3.24
+langchain-core==0.3.72
+langchain-community==0.3.22
+langchain-huggingface==0.1.2
+langchain-chroma==0.2.4
+langchain-ollama==0.3.6
+flashrank==0.2.8
+omegaconf==2.3.0
+huggingface-hub==0.34.1
+streamlit-id-token-patch @ git+https://github.com/jesseDingley/streamlit-id-token-patch.git@main#egg=streamlit-id-token-patch
+pysqlite3-binary

@@ -1,4 +1,4 @@
-from backend.vectorizer import Vectorizer
+from backend.components.vectorizer import Vectorizer
 
 test_vectorizer = Vectorizer()
 

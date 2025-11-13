@@ -1,4 +1,4 @@
-from backend.splitter import GuideTextSplitter
+from backend.components.splitter import GuideTextSplitter
 
 test_guide_url_splitter = GuideTextSplitter()
 
