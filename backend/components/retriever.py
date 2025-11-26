@@ -12,6 +12,8 @@ from time import time
 from requests import HTTPError
 import logging
 
+from backend.components.prompts import ShortInstructions
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -102,6 +104,7 @@ class Retriever:
             query = fields["rephrased_input"]
 
             t0 = time()
+            logging.info("Retrieving documents...")
 
             def call_api():
                 return requests.post(
@@ -140,6 +143,9 @@ class Retriever:
                         metadata=doc["metadata"]
                     )
                 )
+
+            if langchain_docs == []:
+                return [Document(page_content=ShortInstructions.no_docs_found_response)]
 
             return langchain_docs
 

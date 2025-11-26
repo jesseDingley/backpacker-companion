@@ -1,5 +1,5 @@
 app:
-  name: "Alma"
+  name: "Kiteya"
   llm: "mistralai/Mistral-7B-Instruct-v0.3"
   retriever: "hybrid"
   debug: true

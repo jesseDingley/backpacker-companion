@@ -8,7 +8,7 @@ from PIL import Image
 
 from backend.base import Base
 from backend.config.const import CST
-from backend.components.prompts import Prompts
+from backend.components.prompts import Prompts, ShortInstructions
 from backend.components.retriever import Retriever
 from backend.components.parsers import Parsers
 
@@ -61,6 +61,14 @@ class Chat(Base):
             | self.llm
             | Parsers.off_topic_verification_parser
         )
+
+        self.retrieval_necessity_chain = (
+            prompts.retrieval_necessity_prompt_template
+            | self.llm
+            | Parsers.retrieval_necessity_parser
+        )
+
+        self.simple_chat_chain = prompts.qa_chat_prompt_template | self.llm | StrOutputParser()
 
         self.rephrase_chain = prompts.rephrase_chat_prompt_template | self.llm | StrOutputParser()
 
@@ -198,33 +206,51 @@ class Chat(Base):
             limit=CST.MAX_TURNS
         )
 
-        attempts = 0
+        try:
 
-        while attempts < 3:
+            output_json = self.off_topic_verification_chain.invoke(
+                {"input": query, "chat_history": chat_history}
+            )
 
-            try:
+            is_off_topic = output_json["is_off_topic"].lower().strip().strip("'").strip('"')
 
-                output_json = self.off_topic_verification_chain.invoke(
-                    {"input": query, "chat_history": chat_history}
-                )
+            if is_off_topic == "yes":
+                return output_json["refusal_message"]
 
-                is_off_topic = output_json["is_off_topic"].lower().strip()
+            if is_off_topic == "no":
+                return None
 
-                if is_off_topic == "yes":
-                    return output_json["refusal_message"]
+            raise ValueError("Invalid JSON.")
 
-                if is_off_topic == "no":
-                    return None
+        except Exception:
 
-                raise ValueError("Invalid JSON.")
+            logging.warning("Failed to determine if query is off topic. Defaulting to False.")
+            return None
 
-            except Exception:
+    def is_retrieval_needed(self, query: str) -> bool:
+        """
+        Determines whether user query requires retrieval.
 
-                attempts += 1
-                logging.warning(f"Attempt {attempts} failed")
+        Args:
+            query (str): user query
 
-        logging.warning("All attempts failed. Assuming query is not off topic.")
-        return None
+        Returns:
+            bool: True if retrieval is needed, False otherwise.
+        """
+        try:
+            output_json = self.retrieval_necessity_chain.invoke({"input": query})
+            
+            # Try to get the value, handling potential typos in the key name
+            value = output_json.get("is_retrieval_needed") or output_json.get("is_retrival_needed")
+            
+            if value is None:
+                logging.warning(f"Unexpected JSON structure: {output_json}. Defaulting to True.")
+                return True
+                
+            return value.lower().strip().strip("'").strip('"') == "yes"
+        except Exception as e:
+            logging.warning(f"Failed to determine retrieval necessity: {e}. Defaulting to True.")
+            return True
 
     def stream_refusal_message(self, refusal_message: str) -> Iterator[str]:
         """
@@ -269,6 +295,72 @@ class Chat(Base):
         self.formatted_output = {}
         acc_answer = ""
 
+        def should_skip_chunk_start(chunk: str) -> bool:
+            """
+            Helper function to handle AI prefix removal and stream start detection.
+            Returns True if chunk should be skipped, False otherwise.
+            Updates nonlocal variables started_streaming and starts_with_ai.
+            """
+            nonlocal started_streaming, starts_with_ai
+            
+            if not started_streaming:
+                # remove "AI: " from start of generation
+                if chunk.strip() in ["", "\n"]:
+                    return True
+                if chunk.strip() == "AI":
+                    starts_with_ai = True
+                    return True
+                if starts_with_ai and chunk.strip() == ":":
+                    starts_with_ai = False
+                    return True
+
+                started_streaming = True
+                self.ai_msg_placeholder.empty()
+
+            return False
+
+        def process_chunk(chunk: str) -> str:
+            """
+            Process chunk with vocabulary diversification and dollar sign escaping.
+            Returns the processed chunk.
+            """
+            # diversify vocab
+            chunk = Chat.diversify_vocabulary(chunk)
+
+            # escape dollar sign for markdown
+            chunk = Chat.esc_dollar_sign(chunk)
+
+            return chunk
+
+        # Check if retrieval is needed using the REPHRASED query
+        if not self.is_retrieval_needed(rephrased_query):
+
+            logging.info("Skipping retrieval.")
+            
+            # Use simple chain without retrieval
+            for chunk in self.simple_chat_chain.stream(
+                input={
+                    "input": query, 
+                    "context": "",
+                    "chat_history": Chat.format_chat_history(chat_history),
+                }
+            ):
+
+                if should_skip_chunk_start(chunk):
+                    continue
+
+                # end stream
+                if chunk == "</s>":
+                    break
+
+                chunk = process_chunk(chunk)
+
+                acc_answer += chunk
+                yield chunk
+
+            self.formatted_output["answer"] = acc_answer
+            return
+
         try:
 
             for chunk in self.qa.stream(
@@ -287,31 +379,15 @@ class Chat(Base):
                     self.formatted_output["context"] = context_chunk
 
                 if answer_chunk := chunk.get("answer"):
-
-                    if not started_streaming:
-
-                        # remove "AI: " from start of generation
-                        if answer_chunk.strip() in ["", "\n"]:
-                            continue
-                        if answer_chunk.strip() == "AI":
-                            starts_with_ai = True
-                            continue
-                        if starts_with_ai and answer_chunk.strip() == ":":
-                            starts_with_ai = False
-                            continue
-
-                        started_streaming = True
-                        self.ai_msg_placeholder.empty()
+                    
+                    if should_skip_chunk_start(answer_chunk):
+                        continue
 
                     # end stream
                     if answer_chunk == "</s>":
                         break
 
-                    # diversify vocab
-                    answer_chunk = Chat.diversify_vocabulary(answer_chunk)
-
-                    # escape dollar sign for markdown
-                    answer_chunk = Chat.esc_dollar_sign(answer_chunk)
+                    answer_chunk = process_chunk(answer_chunk)
 
                     acc_answer += answer_chunk
                     yield answer_chunk
@@ -328,6 +404,8 @@ class Chat(Base):
             top_ranking_documents = []
             used = []
             for doc in self.formatted_output["context"]:
+                if doc.page_content == ShortInstructions.no_docs_found_response:
+                    break
                 if not doc.metadata["link"] in used:
                     if "score" in doc.metadata:
                         if (doc.metadata["score"] <= CST.THRESHOLD):
@@ -435,6 +513,7 @@ class Chat(Base):
                     self.ai_msg_placeholder = st.empty()
                     self.ai_msg_placeholder.write("Hmm...")
 
+                    # 1. Check if off-topic (using raw input, but prompt has history)
                     refusal_message = self.is_query_off_topic(
                         prompt, st.session_state["chat_history"]
                     )
@@ -454,6 +533,7 @@ class Chat(Base):
 
                     else:
 
+                        # 2. Rephrase only if on-topic
                         rephrased_input = self.rephrase_chain.invoke({
                             "input": prompt, 
                             "chat_history": Chat.format_chat_history(st.session_state["chat_history"])

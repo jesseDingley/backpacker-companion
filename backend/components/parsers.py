@@ -17,12 +17,24 @@ class IsOffTopic(BaseModel):
     )
 
 
+class RetrievalNecessity(BaseModel):
+    """
+    Desired output JSON structure
+    for LLM call determining whether the user query requires retrieval.
+    """
+
+    is_retrieval_needed: str = Field(
+        description="'yes' or 'no' to whether the user question requires retrieving information from the vector database."
+    )
+
+
 class Parsers:
     """
     Available parsers
     """
 
     off_topic_verification_parser = JsonOutputParser(pydantic_object=IsOffTopic)
+    retrieval_necessity_parser = JsonOutputParser(pydantic_object=RetrievalNecessity)
 
 
 """

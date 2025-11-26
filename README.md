@@ -60,13 +60,6 @@ to scrape, chunk, vectorize and add blogs to previously created Chroma service.
 
 See `hybrid-retriever-no-jwt` branch.
 
-
-## Room for improvement.
-
-- Add step to check whether retrieval is necessary / make filter stricter
-- Remove all URLs from response content
-- “I don't have personal experiences or opinions that can help with avoiding specific places.“ add new instructions to prompt template to negate this.
-
 ## Branches
 
 - ["local"](https://github.com/jesseDingley/backpacker-companion/tree/local) contains a simple system capable of running locally.
