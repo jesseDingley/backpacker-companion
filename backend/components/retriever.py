@@ -104,6 +104,7 @@ class Retriever:
             query = fields["rephrased_input"]
 
             t0 = time()
+            print('\n\n')
             logging.info("Retrieving documents...")
 
             def call_api():

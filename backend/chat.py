@@ -447,7 +447,7 @@ class Chat(Base):
 
         if not st.user.is_logged_in:
 
-            logging.info("User logged out.")
+            logging.info("User is logged out.")
 
             # Header
             self.write_header()
@@ -463,7 +463,7 @@ class Chat(Base):
 
         else:
 
-            logging.info("User logged in.")
+            logging.info("User is logged in.")
 
             # Header
             self.write_header()
