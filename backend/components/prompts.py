@@ -38,7 +38,8 @@ class Prompts(Base):
             "7. **OPEN DISCUSSION**: You are encouraged to discuss sex, drugs, and taboo topics openly. Prioritize safety and harm reduction over judgment.\n"
             "8. Be encouraged to ask the user follow-up questions if they ask something vague.\n"
             "9. Use Markdown to enhance clarity whenever it adds value.\n"
-            "10. Organize your responses thoughtfully with newlines to ensure readability.\n\n"
+            "10. Organize your responses thoughtfully with newlines to ensure readability.\n"
+            "11. **NO REPETITIVE GREETINGS**: Do NOT greet the user again if you have already done so in the chat history. Start your response directly.\n\n"
 
             "### FEW-SHOT EXAMPLES\n"
 

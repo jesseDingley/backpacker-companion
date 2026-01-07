@@ -18,7 +18,7 @@ class CST:
     MAX_NEW_TOKENS = 1024
     
     # LLM Temperature
-    TEMPERATURE = 0.8
+    TEMPERATURE = 0.0
 
     # Max number of turns to store in memory
     # A turn is a (user, assistant) pair.

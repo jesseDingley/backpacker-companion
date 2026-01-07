@@ -180,7 +180,7 @@ class Chat(Base):
         st.write(
             f"""
                 <div style="display: flex; align-items: center; margin-bottom: 10px; justify-content: {self.MESSAGE_ALIGNMENT};">
-                    <div style="background: {self.MESSAGE_BG_COLOR}; color: white; border-radius: 15px; padding: 10px; margin-right: 5px; max-width: 75%; font-size: 14px;">
+                    <div style="background: {self.MESSAGE_BG_COLOR}; color: white; border-radius: 15px; padding: 10px; margin-right: 5px; max-width: 75%; font-size: 16px;">
                         {msg} \n </div>
                 </div>
                 """,
