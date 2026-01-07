@@ -17,9 +17,15 @@ import google.oauth2.id_token
 
 from dotenv import load_dotenv
 import os
+import requests
 
 from omegaconf import OmegaConf
 config = OmegaConf.load("config/config.yaml") #TODO
+
+import logging
+logging.basicConfig(
+    format="%(levelname)s:  %(message)s"
+)
 
 class Utils:
 
@@ -30,7 +36,14 @@ class Utils:
 
         auth_req = google.auth.transport.requests.Request()
         audience = os.getenv("CHROMA_SERVICE")
-        id_token = google.oauth2.id_token.fetch_id_token(auth_req, audience)
+        logging.warning(f"Fetching token for audience: {audience}")
+        try:
+            # Attempt to fetch token with explicit error handling
+            id_token = google.oauth2.id_token.fetch_id_token(auth_req, audience)
+        except Exception as e:
+            logging.error(f"CRITICAL ERROR fetching ID token: {e}")
+            raise e
+        logging.warning(f"ID Token successfully refreshed.")
 
         chroma_client = chromadb.HttpClient(
             host=audience,

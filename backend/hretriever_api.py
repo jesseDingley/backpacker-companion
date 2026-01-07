@@ -37,21 +37,8 @@ class HybridRetrieverAPI:
             title="HybridRetrieverAPI"
         )
 
-        self._register_retriever_refresher()
         self._initialize_routes()
-
-    def _register_retriever_refresher(self):
-
-        @self.app.on_event("startup")
-        @repeat_every(seconds=60*50) #50 mins
-        def get_retriever():
-            if not self.startup:
-                logging.warning("Refreshing Retriever...")
-                self.retriever = HybridRetriever(
-                    path_docstore=config.paths.docstores.bm25_docstore
-                )
-            self.startup = False
-                
+        
     def _initialize_routes(self):
 
         @self.app.get("/")
@@ -65,11 +52,22 @@ class HybridRetrieverAPI:
             if not HybridRetrieverAPI.verify_google_id_token(token):
                 raise HTTPException(status_code=401, detail="Invalid Authorization header")
 
-            retrieved_documents = self.retriever.retrieve(
-                query=request.query,
-                k=request.k,
-                threshold=request.threshold,
-            )
+            try:
+                retrieved_documents = self.retriever.retrieve(
+                    query=request.query,
+                    k=request.k,
+                    threshold=request.threshold,
+                )
+            except Exception as e:
+                logging.warning(f"Retrieval failed (likely expired token). Refreshing token and retrying... Error: {e}")
+                self.retriever.refresh_token()
+                # Retry once
+                retrieved_documents = self.retriever.retrieve(
+                    query=request.query,
+                    k=request.k,
+                    threshold=request.threshold,
+                )
+
             return {
                 "query": request.query,
                 "res": retrieved_documents

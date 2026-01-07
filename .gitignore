@@ -187,3 +187,5 @@ chroma/deploy_chroma.yaml
 backend/.gcloud-credentials.json
 
 backend/data/docstores/
+
+st_login_example.py

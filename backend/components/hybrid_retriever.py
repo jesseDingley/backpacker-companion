@@ -168,6 +168,14 @@ class HybridRetriever:
 
         logging.warning("Hybrid Retriever init complete.")
 
+    def refresh_token(self):
+        """
+        Refresh Chroma Service Google ID Token 
+        """
+        chroma_client = Utils.init_chroma_client()
+        self.collection = Utils.load_collection_from_client(chroma_client)
+        self.vector_retriever.collection = self.collection
+
     @staticmethod
     def get_documents_ranking(retriever_results: List[Dict[str, Any]]) -> Dict[str, int]:
         """
