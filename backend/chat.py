@@ -445,6 +445,11 @@ class Chat(Base):
         Run streamlit app
         """
 
+        if "num_interactions" not in st.session_state: 
+            st.session_state["num_interactions"] = 0
+
+        st.session_state["num_interactions"] += 1
+
         if not st.user.is_logged_in:
 
             logging.info("User is logged out.")
@@ -464,6 +469,10 @@ class Chat(Base):
         else:
 
             logging.info("User is logged in.")
+            
+            if st.session_state["num_interactions"] == 1:
+                logging.info("Refreshed page to prevent ghosting.")
+                st.rerun()
 
             # Header
             self.write_header()
@@ -472,7 +481,8 @@ class Chat(Base):
             with st.sidebar:
                 if st.button("New Chat", use_container_width=True, type="primary"):
                     for key in st.session_state.keys():
-                        del st.session_state[key]
+                        if key != "num_interactions":
+                            del st.session_state[key]
 
                 if st.button("Sign out", use_container_width=True):
                     st.logout()
