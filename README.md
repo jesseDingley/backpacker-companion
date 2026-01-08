@@ -36,15 +36,24 @@ To (re) deploy Chroma as a Google Cloud Run service, run
 
 ```
 $ make deploy-chroma \ 
-    SERVICE_NAME=<your-cloud-run-service-name> \
+    SERVICE_NAME=chroma \
+    SERVICE_ACCOUNT_NAME=<gcp-service-account-name> \
+    BUCKET_NAME=<storage-bucket-name> \
+    PROJECT_ID=<project-id>
+```
+(Mounts the GCS bucket directly to the Cloud Run container using. Slow. Inspired from https://github.com/HerveMignot/chromadb-on-gcp)
+
+or 
+
+```
+$ make deploy-chroma-copy \ 
+    SERVICE_NAME=chroma \
     SERVICE_ACCOUNT_NAME=<gcp-service-account-name> \
     BUCKET_NAME=<storage-bucket-name> \
     PROJECT_ID=<project-id>
 ```
 
-See https://github.com/HerveMignot/chromadb-on-gcp for further details.
-
-**NOTE:** This only deploys Chroma as a service, it does not create any collections nor add any documents.
+(Downloads the entire Chroma collection from the GCS bucket to the container's local filesystem. This method is only to be used if the collection already exists. Attempting to write to the collection with this service will not update the collection in the GCS bucket, only the ephemeral copied collection to the service container.)
 
 ## Populating Chroma Collection
 
