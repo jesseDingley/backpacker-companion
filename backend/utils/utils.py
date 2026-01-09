@@ -5,7 +5,7 @@
 from tqdm import tqdm
 import chromadb
 from chromadb.config import Settings
-from chromadb import Collection
+from chromadb import Collection, ClientAPI
 from typing import List
 from llama_index.core import Document
 from llama_index.core.schema import BaseNode
@@ -30,12 +30,17 @@ logging.basicConfig(
 class Utils:
 
     @staticmethod
-    def init_chroma_client():
+    def init_chroma_client(fast: bool) -> ClientAPI:
 
         load_dotenv(dotenv_path=".env")
 
+        if fast:
+            audience = os.getenv("CHROMA_SERVICE_FAST")
+        else:
+            audience = os.getenv("CHROMA_SERVICE")
+
         auth_req = google.auth.transport.requests.Request()
-        audience = os.getenv("CHROMA_SERVICE")
+
         logging.warning(f"Fetching token for audience: {audience}")
         try:
             # Attempt to fetch token with explicit error handling
@@ -121,7 +126,7 @@ class DocStoreManager:
     def create_docstore_end_to_end():
         """Creates and Persists Docstore based on default config."""
 
-        chroma_client = Utils.init_chroma_client()
+        chroma_client = Utils.init_chroma_client(fast=False)
         collection = Utils.load_collection_from_client(client=chroma_client)
 
         nodes = DocStoreManager.create_nodes(collection=collection)

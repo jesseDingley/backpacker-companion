@@ -6,6 +6,7 @@ from collections import defaultdict
 from llama_index.core.schema import QueryBundle
 from typing import List, Dict, Any, Tuple
 from chromadb import Collection
+import time
 
 import logging
 logging.basicConfig(
@@ -132,6 +133,7 @@ class HybridRetriever:
     def __init__(
         self, 
         path_docstore: str,
+        fast: bool = True,
         pre_top_k: int = 50, 
         bm25_threshold: float = 6.0,
         vector_threshold: float = 0.8,
@@ -141,7 +143,9 @@ class HybridRetriever:
         max_docs_plus_children: int = 15,
     ):
         
-        chroma_client = Utils.init_chroma_client()
+        self.fast = fast
+        
+        chroma_client = Utils.init_chroma_client(fast=self.fast)
         self.collection = Utils.load_collection_from_client(chroma_client)
         
         self.bm25_retriever = CustomBM25Retriever.from_defaults(
@@ -172,7 +176,7 @@ class HybridRetriever:
         """
         Refresh Chroma Service Google ID Token 
         """
-        chroma_client = Utils.init_chroma_client()
+        chroma_client = Utils.init_chroma_client(fast=self.fast)
         self.collection = Utils.load_collection_from_client(chroma_client)
         self.vector_retriever.collection = self.collection
 
@@ -361,9 +365,16 @@ class HybridRetriever:
         Returns:
             List[Dict[str, Any]]: retrieved documents.
         """
+        t00 = time.time()
 
         bm25_docs = self.bm25_retriever.retrieve(query)
+        t1 = time.time()
+        logging.warning(f"BM25 retrieval: {round(t1-t00, 3)}")
+
+        t0 = time.time()
         vector_docs = self.vector_retriever.retrieve(query)
+        t1 = time.time()
+        logging.warning(f"Vector retrieval: {round(t1-t0, 3)}")
 
         bm25_ranks = HybridRetriever.get_documents_ranking(bm25_docs)
         vector_ranks = HybridRetriever.get_documents_ranking(vector_docs)
@@ -391,6 +402,11 @@ class HybridRetriever:
             doc_to_return["metadata"]["score"] = score
             retrieved_docs.append(doc_to_return)
 
+        t0 = time.time()
         retrieved_docs_plus_children = self.get_children(retrieved_docs)
+        t1 = time.time()
+        logging.warning(f"Get children: {round(t1-t0, 3)}")
+
+        logging.warning(f"Hybrid retrieval in function: {round(t1-t00, 3)}")
             
         return retrieved_docs_plus_children

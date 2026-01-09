@@ -183,6 +183,7 @@ tgi/
 chroma-auth-tests/
 
 chroma/deploy_chroma.yaml
+chroma/deploy_chroma_copy.yaml
 
 backend/.gcloud-credentials.json
 
