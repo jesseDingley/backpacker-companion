@@ -123,7 +123,7 @@ def wake_up_server() -> None:
         
         sleep(5)
 
-@st.cache_resource(show_spinner="Warming up LLM endpoint.")
+#@st.cache_resource(show_spinner="Warming up LLM endpoint.")
 def wake_up_llm_endpoint() -> None:
     """Wakes up HF LLM endpoint."""
 
@@ -140,7 +140,7 @@ def wake_up_llm_endpoint() -> None:
         if response.status_code == 200:
             return
 
-        sleep(5)
+        #sleep(5)
 
 class Base:
     """
@@ -161,6 +161,11 @@ class Base:
     """
 
     def __init__(self) -> None:
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
 
         load_dotenv()
         login_hf()
@@ -195,9 +200,5 @@ class Base:
         wake_up_server()
 
         if os.environ.get("ENV") != "dev":
+            logging.info("HF Endpoint HealthCheck Running")
             wake_up_llm_endpoint()
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )

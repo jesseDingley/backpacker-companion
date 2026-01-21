@@ -5,11 +5,8 @@ import re
 import random
 from requests import HTTPError
 from PIL import Image
-import requests
-from dotenv import load_dotenv
-import os
 
-from backend.base import Base, wake_up_llm_endpoint
+from backend.base import Base
 from backend.config.const import CST
 from backend.components.prompts import Prompts, ShortInstructions
 from backend.components.retriever import Retriever
@@ -476,20 +473,6 @@ class Chat(Base):
             if st.session_state["num_interactions"] == 1:
                 logging.info("Refreshed page to prevent ghosting.")
                 st.rerun()
-
-            load_dotenv()
-            if os.environ.get("ENV") != "dev":
-
-                hf_endpoint_check = requests.get(
-                    st.secrets["secrets"]["llm_endpoint"] + "/health",
-                    headers={
-                        "Authorization": f"Bearer {st.secrets['secrets']['huggingface_api_key']}",
-                        "Content-Type": "application/json",
-                    }
-                )
-
-                if hf_endpoint_check.status_code != 200: #i.e. HF server not running
-                    wake_up_llm_endpoint()
 
             # Header
             self.write_header()
