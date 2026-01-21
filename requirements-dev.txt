@@ -15,7 +15,6 @@ pytest==8.3.2
 flashrank==0.2.8
 rank_bm25==0.2.2
 omegaconf==2.3.0
-google-auth==2.36.0
 beautifulsoup4==4.12.3
 huggingface-hub==0.34.1
 google-api-core==2.25.1

@@ -9,5 +9,6 @@ langchain-ollama==0.3.6
 flashrank==0.2.8
 omegaconf==2.3.0
 huggingface-hub==0.34.1
+google-auth==2.36.0
 streamlit-id-token-patch @ git+https://github.com/jesseDingley/streamlit-id-token-patch.git@main#egg=streamlit-id-token-patch
 pysqlite3-binary
