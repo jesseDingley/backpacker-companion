@@ -136,7 +136,7 @@ def wake_up_llm_endpoint() -> None:
             }
         )
 
-        if response.status_code == 200:
+        if response.status_code in [200, 404]:
             return
 
         sleep(5)
