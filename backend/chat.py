@@ -6,7 +6,7 @@ import random
 from requests import HTTPError
 from PIL import Image
 
-from backend.base import Base
+from backend.base import Base, wake_up_llm_endpoint
 from backend.config.const import CST
 from backend.components.prompts import Prompts, ShortInstructions
 from backend.components.retriever import Retriever
@@ -16,6 +16,8 @@ from langchain_chroma import Chroma
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.schema.output_parser import StrOutputParser
+
+from huggingface_hub.utils import HfHubHTTPError
 
 import streamlit as st
 
@@ -468,122 +470,129 @@ class Chat(Base):
 
         else:
 
-            logging.info("User is logged in.")
-            
-            if st.session_state["num_interactions"] == 1:
-                logging.info("Refreshed page to prevent ghosting.")
-                st.rerun()
+            try:
 
-            # Header
-            self.write_header()
+                logging.info("User is logged in.")
+                
+                if st.session_state["num_interactions"] == 1:
+                    logging.info("Refreshed page to prevent ghosting.")
+                    st.rerun()
 
-            # Sidebar 
-            with st.sidebar:
-                if st.button("New Chat", use_container_width=True, type="primary"):
-                    for key in st.session_state.keys():
-                        if key != "num_interactions":
-                            del st.session_state[key]
+                # Header
+                self.write_header()
 
-                if st.button("Sign out", use_container_width=True):
-                    st.logout()
+                # Sidebar 
+                with st.sidebar:
+                    if st.button("New Chat", use_container_width=True, type="primary"):
+                        for key in st.session_state.keys():
+                            if key != "num_interactions":
+                                del st.session_state[key]
 
-                st.markdown(self.sidebar_content)
+                    if st.button("Sign out", use_container_width=True):
+                        st.logout()
 
-            # Init chat history
-            if not "chat_history" in st.session_state:
-                st.session_state["chat_history"] = [
-                    ("assistant", f"Hey there {st.user['name'].split(' ')[0]}! {self.NAME} here, how can I help you?")
-                ]
+                    st.markdown(self.sidebar_content)
 
-            # Init data sources to display on each assistant message
-            if not "references" in st.session_state:
-                st.session_state["references"] = [""]
+                # Init chat history
+                if not "chat_history" in st.session_state:
+                    st.session_state["chat_history"] = [
+                        ("assistant", f"Hey there {st.user['name'].split(' ')[0]}! {self.NAME} here, how can I help you?")
+                    ]
 
-            # Display whole chat history
-            for role_msg_tuple, reference in zip(
-                st.session_state["chat_history"], st.session_state["references"]
-            ):
-                role = role_msg_tuple[0]
-                msg = role_msg_tuple[1]
-                if role == "user":
-                    self.write_human_msg(msg)
-                else:
-                    with st.chat_message(role, avatar=self.assistant_icon):
-                        st.empty()
-                        st.write(msg + reference)
+                # Init data sources to display on each assistant message
+                if not "references" in st.session_state:
+                    st.session_state["references"] = [""]
 
-            # New message from User
-            if prompt := st.chat_input():
-
-                self.write_human_msg(prompt)
-
-                # Generate and stream response from Assistant
-                with st.chat_message("assistant", avatar=self.assistant_icon):
-
-                    self.ai_msg_placeholder = st.empty()
-                    self.ai_msg_placeholder.write("Hmm...")
-
-                    # 1. Check if off-topic (using raw input, but prompt has history)
-                    refusal_message = self.is_query_off_topic(
-                        prompt, st.session_state["chat_history"]
-                    )
-
-                    if self.debug:
-                        print('\n\n')
-                        if refusal_message is not None:
-                            logging.info("Is off topic: True")
-                            logging.info(f"Refusal message: <<<{refusal_message}>>>")
-                        else:
-                            logging.info("Is off topic: False")
-                        print('\n')
-
-                    if refusal_message is not None:
-
-                        st.write_stream(self.stream_refusal_message(refusal_message))
-
+                # Display whole chat history
+                for role_msg_tuple, reference in zip(
+                    st.session_state["chat_history"], st.session_state["references"]
+                ):
+                    role = role_msg_tuple[0]
+                    msg = role_msg_tuple[1]
+                    if role == "user":
+                        self.write_human_msg(msg)
                     else:
+                        with st.chat_message(role, avatar=self.assistant_icon):
+                            st.empty()
+                            st.write(msg + reference)
 
-                        # 2. Rephrase only if on-topic
-                        rephrased_input = self.rephrase_chain.invoke({
-                            "input": prompt, 
-                            "chat_history": Chat.format_chat_history(st.session_state["chat_history"])
-                        })
+                # New message from User
+                if prompt := st.chat_input():
 
-                        if self.debug:
-                            print("\n\n")   
-                            logging.info(f"Rephrased Input: {rephrased_input}\n")
+                    self.write_human_msg(prompt)
 
-                        st.write_stream(
-                            self.stream(
-                                prompt,
-                                rephrased_input,
-                                st.session_state["chat_history"],
-                                st.user["id_token"],
-                            )
+                    # Generate and stream response from Assistant
+                    with st.chat_message("assistant", avatar=self.assistant_icon):
+
+                        self.ai_msg_placeholder = st.empty()
+                        self.ai_msg_placeholder.write("Hmm...")
+
+                        # 1. Check if off-topic (using raw input, but prompt has history)
+                        refusal_message = self.is_query_off_topic(
+                            prompt, st.session_state["chat_history"]
                         )
 
-                # Update chat history
-                st.session_state["chat_history"].append(("user", prompt))
-                st.session_state["chat_history"].append(("assistant", self.formatted_output["answer"]))
+                        if self.debug:
+                            print('\n\n')
+                            if refusal_message is not None:
+                                logging.info("Is off topic: True")
+                                logging.info(f"Refusal message: <<<{refusal_message}>>>")
+                            else:
+                                logging.info("Is off topic: False")
+                            print('\n')
 
-                st.session_state["references"].append("")
-                if "source" in self.formatted_output:
-                    st.session_state["references"].append(self.formatted_output["source"])
-                else:
+                        if refusal_message is not None:
+
+                            st.write_stream(self.stream_refusal_message(refusal_message))
+
+                        else:
+
+                            # 2. Rephrase only if on-topic
+                            rephrased_input = self.rephrase_chain.invoke({
+                                "input": prompt, 
+                                "chat_history": Chat.format_chat_history(st.session_state["chat_history"])
+                            })
+
+                            if self.debug:
+                                print("\n\n")   
+                                logging.info(f"Rephrased Input: {rephrased_input}\n")
+
+                            st.write_stream(
+                                self.stream(
+                                    prompt,
+                                    rephrased_input,
+                                    st.session_state["chat_history"],
+                                    st.user["id_token"],
+                                )
+                            )
+
+                    # Update chat history
+                    st.session_state["chat_history"].append(("user", prompt))
+                    st.session_state["chat_history"].append(("assistant", self.formatted_output["answer"]))
+
                     st.session_state["references"].append("")
-
-                # Debug statements
-                if self.debug:
-                    if "context" in self.formatted_output:
-                        print("\n\n")
-                        print("=============")
-                        for i, doc in enumerate(self.formatted_output["context"]):
-                            print(f"DOCUMENT {i}: ")
-
-                            print("<---")
-                            print(doc)
-                            print("--->")
-                        print("=============")
-                        print("\n\n")
+                    if "source" in self.formatted_output:
+                        st.session_state["references"].append(self.formatted_output["source"])
                     else:
-                        print("\n\nNO DOCUMENTS RETRIEVED")
+                        st.session_state["references"].append("")
+
+                    # Debug statements
+                    if self.debug:
+                        if "context" in self.formatted_output:
+                            print("\n\n")
+                            print("=============")
+                            for i, doc in enumerate(self.formatted_output["context"]):
+                                print(f"DOCUMENT {i}: ")
+
+                                print("<---")
+                                print(doc)
+                                print("--->")
+                            print("=============")
+                            print("\n\n")
+                        else:
+                            print("\n\nNO DOCUMENTS RETRIEVED")
+            
+            except HfHubHTTPError as e:
+                wake_up_llm_endpoint()
+            else:
+                st.rerun()
