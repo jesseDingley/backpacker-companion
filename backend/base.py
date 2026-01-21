@@ -130,13 +130,14 @@ def wake_up_llm_endpoint() -> None:
     while True:
 
         response = requests.get(
-            st.secrets["secrets"]["llm_endpoint"],
+            st.secrets["secrets"]["llm_endpoint"] + "/health",
             headers={
-                "Authorization": f"Bearer {st.secrets['secrets']['huggingface_api_key']}"
+                "Authorization": f"Bearer {st.secrets['secrets']['huggingface_api_key']}",
+                "Content-Type": "application/json",
             }
         )
 
-        if response.status_code in [200, 404]:
+        if response.status_code == 200:
             return
 
         sleep(5)
