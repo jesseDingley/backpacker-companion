@@ -81,17 +81,22 @@ def init_llm(llm: str) -> HuggingFaceEndpoint | ChatOllama:
             task="text-generation",
             max_new_tokens=CST.MAX_NEW_TOKENS,
             temperature=CST.TEMPERATURE,
-            repetition_penalty=1.3,
+            top_k=CST.TOP_K,
+            top_p=CST.TOP_P,
+            repetition_penalty=CST.REPEAT_PENALTY,
             callbacks=[StreamingStdOutCallbackHandler()],
             streaming=True,
             stop_sequences=[
                 "<unk>", "</s>", "Assistant", "User"
             ],
         )
+            
     return ChatOllama(
         model="mistral:latest",
         temperature=CST.TEMPERATURE,
-        repeat_penalty=1.3,
+        top_k=CST.TOP_K,
+        top_p=CST.TOP_P,
+        repeat_penalty=CST.REPEAT_PENALTY,
         callbacks=[StreamingStdOutCallbackHandler()],
         stop=[
             "<unk>", "</s>", "Assistant", "User"

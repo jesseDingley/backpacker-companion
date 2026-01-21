@@ -17,8 +17,11 @@ class CST:
     # Max new tokens for LLM to return
     MAX_NEW_TOKENS = 1024
     
-    # LLM Temperature
-    TEMPERATURE = 0.0
+    # LLM Parameters
+    TEMPERATURE = 1.2
+    TOP_K = 100
+    TOP_P = 0.95
+    REPEAT_PENALTY = 0.95
 
     # Max number of turns to store in memory
     # A turn is a (user, assistant) pair.
