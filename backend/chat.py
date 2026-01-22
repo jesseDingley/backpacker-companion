@@ -474,8 +474,6 @@ class Chat(Base):
                 logging.info("Refreshed page to prevent ghosting.")
                 st.rerun()
 
-            
-
             # Header
             self.write_header()
 

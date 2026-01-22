@@ -4,6 +4,7 @@ import requests
 from time import time, sleep
 import logging
 
+from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_ollama import ChatOllama
@@ -63,7 +64,7 @@ def init_chroma_client() -> chromadb.HttpClient:
     return chroma_client
 
 @st.cache_resource(show_spinner="Initializing LLM")
-def init_llm(llm: str) -> HuggingFaceEndpoint | ChatOllama:
+def init_llm(llm: str, model_name: str) -> HuggingFaceEndpoint | ChatOllama:
     """
     Inits LLM endpoint. 
     If running in production -> HF endpoint
@@ -71,11 +72,33 @@ def init_llm(llm: str) -> HuggingFaceEndpoint | ChatOllama:
     
     Args:
         llm (str): can be repo id or endpoint url.
+        model_name (str): model name (mistralai/Mistral-7B-Instruct-v0.3 for ex)
 
     Returns:
         HuggingFaceEndpoint | ChatOllama
     """
+    if llm.endswith("v1"):
+        logging.info("Selecting vLLM HF Endpoint.")
+        return ChatOpenAI(
+            base_url=llm,
+            model=model_name,
+            api_key=st.secrets['secrets']['huggingface_api_key'], 
+            max_completion_tokens=CST.MAX_NEW_TOKENS,
+            temperature=CST.TEMPERATURE,
+            model_kwargs={
+                "top_p": CST.TOP_P,
+                "top_k": CST.TOP_K,
+                "repetition_penalty": CST.REPEAT_PENALTY,
+            },
+            callbacks=[StreamingStdOutCallbackHandler()],
+            streaming=True,
+            stop_sequences=[
+                "<unk>", "</s>", "Assistant", "User"
+            ],
+        )
+
     if llm.startswith("http"):
+        logging.info("Selecting TGI HF Endpoint.")
         return HuggingFaceEndpoint(
             endpoint_url=llm,
             task="text-generation",
@@ -91,6 +114,7 @@ def init_llm(llm: str) -> HuggingFaceEndpoint | ChatOllama:
             ],
         )
             
+    logging.info("Selecting local Ollama endpoint.")
     return ChatOllama(
         model="mistral:latest",
         temperature=CST.TEMPERATURE,
@@ -162,12 +186,18 @@ class Base:
 
     def __init__(self) -> None:
 
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+
         load_dotenv()
         login_hf()
 
         self.config = OmegaConf.load("backend/config/config.yaml")
 
         self.NAME = self.config.app.name
+        self.MODEL_NAME = self.config.app.llm
         self.LLM_ENDPOINT = self.config.app.llm if os.environ.get("ENV") == "dev" else st.secrets["secrets"]["llm_endpoint"]
         self.RETRIEVER = self.config.app.retriever
         self.debug = self.config.app.debug
@@ -190,14 +220,12 @@ class Base:
             self.embeddings = load_emb_ft(self.collection_config["EMBEDDING_MODEL"])
             self.chroma_client = init_chroma_client()
 
-        self.llm = init_llm(llm=self.LLM_ENDPOINT)
+        self.llm = init_llm(
+            llm=self.LLM_ENDPOINT, 
+            model_name=self.MODEL_NAME
+        )
 
         wake_up_server()
 
         if os.environ.get("ENV") != "dev":
             wake_up_llm_endpoint()
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
