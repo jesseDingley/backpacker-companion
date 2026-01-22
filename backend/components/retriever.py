@@ -105,7 +105,7 @@ class Retriever:
 
             t0 = time()
             print('\n\n')
-            logging.info("Retrieving documents...")
+            logging.info("\nRetrieving documents...")
 
             def call_api():
                 return requests.post(
@@ -132,7 +132,7 @@ class Retriever:
                         raise HTTPError(str(response.status_code))
 
             t1 = time()
-            logging.info(f"Retrieval time: {t1 - t0:.2f} seconds")
+            logging.info(f"\nRetrieval time: {t1 - t0:.2f} seconds")
 
             retrieved_docs = response.json()["res"]
 

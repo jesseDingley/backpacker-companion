@@ -224,7 +224,7 @@ class Chat(Base):
 
         except Exception:
 
-            logging.warning("Failed to determine if query is off topic. Defaulting to False.")
+            logging.warning("\nFailed to determine if query is off topic. Defaulting to False.")
             return None
 
     def is_retrieval_needed(self, query: str) -> bool:
@@ -244,12 +244,12 @@ class Chat(Base):
             value = output_json.get("is_retrieval_needed") or output_json.get("is_retrival_needed")
             
             if value is None:
-                logging.warning(f"Unexpected JSON structure: {output_json}. Defaulting to True.")
+                logging.warning(f"\nUnexpected JSON structure: {output_json}. Defaulting to True.")
                 return True
                 
             return value.lower().strip().strip("'").strip('"') == "yes"
         except Exception as e:
-            logging.warning(f"Failed to determine retrieval necessity: {e}. Defaulting to True.")
+            logging.warning(f"\nFailed to determine retrieval necessity: {e}. Defaulting to True.")
             return True
 
     def stream_refusal_message(self, refusal_message: str) -> Iterator[str]:
@@ -335,7 +335,7 @@ class Chat(Base):
         # Check if retrieval is needed using the REPHRASED query
         if not self.is_retrieval_needed(rephrased_query):
 
-            logging.info("Skipping retrieval.")
+            logging.info("\nSkipping retrieval.")
             
             # Use simple chain without retrieval
             for chunk in self.simple_chat_chain.stream(
@@ -452,7 +452,7 @@ class Chat(Base):
 
         if not st.user.is_logged_in:
 
-            logging.info("User is logged out.")
+            logging.info("\nUser is logged out.")
 
             # Header
             self.write_header()
@@ -468,10 +468,10 @@ class Chat(Base):
 
         else:
 
-            logging.info("User is logged in.")
+            logging.info("\nUser is logged in.")
             
             if st.session_state["num_interactions"] == 1:
-                logging.info("Refreshed page to prevent ghosting.")
+                logging.info("\nRefreshed page to prevent ghosting.")
                 st.rerun()
 
             # Header
@@ -531,10 +531,10 @@ class Chat(Base):
                     if self.debug:
                         print('\n\n')
                         if refusal_message is not None:
-                            logging.info("Is off topic: True")
-                            logging.info(f"Refusal message: <<<{refusal_message}>>>")
+                            logging.info("\nIs off topic: True")
+                            logging.info(f"\nRefusal message: <<<{refusal_message}>>>")
                         else:
-                            logging.info("Is off topic: False")
+                            logging.info("\nIs off topic: False")
                         print('\n')
 
                     if refusal_message is not None:
@@ -551,7 +551,7 @@ class Chat(Base):
 
                         if self.debug:
                             print("\n\n")   
-                            logging.info(f"Rephrased Input: {rephrased_input}\n")
+                            logging.info(f"\nRephrased Input: {rephrased_input}\n")
 
                         st.write_stream(
                             self.stream(
