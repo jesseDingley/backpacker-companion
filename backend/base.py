@@ -86,8 +86,8 @@ def init_llm(llm: str, model_name: str) -> HuggingFaceEndpoint | ChatOllama:
             api_key=st.secrets['secrets']['huggingface_api_key'], 
             max_completion_tokens=CST.MAX_NEW_TOKENS,
             temperature=CST.TEMPERATURE,
-            model_kwargs={
-                "top_p": CST.TOP_P,
+            top_p=CST.TOP_P,
+            extra_body={
                 "top_k": CST.TOP_K,
                 "repetition_penalty": CST.REPEAT_PENALTY,
             },
