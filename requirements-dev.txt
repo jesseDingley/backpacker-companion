@@ -20,5 +20,5 @@ huggingface-hub==0.34.1
 google-api-core==2.25.1
 google-auth==2.36.0
 google-cloud-core==2.4.3
-langchain-openai==1.1.7
+langchain-openai==0.3.28
 streamlit-id-token-patch @ git+https://github.com/jesseDingley/streamlit-id-token-patch.git@main#egg=streamlit-id-token-patch
