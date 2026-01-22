@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import requests
 from time import time, sleep
 import logging
+import re
 
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
@@ -154,7 +155,7 @@ def wake_up_llm_endpoint() -> None:
     while True:
 
         response = requests.get(
-            st.secrets["secrets"]["llm_endpoint"] + "/health",
+            re.sub(r"/v1$", "", st.secrets["secrets"]["llm_endpoint"]) + "/health",
             headers={
                 "Authorization": f"Bearer {st.secrets['secrets']['huggingface_api_key']}",
                 "Content-Type": "application/json",
