@@ -189,7 +189,7 @@ class Base:
 
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
+            format='\n\n%(asctime)s - %(levelname)s - %(message)s\n\n'
         )
 
         load_dotenv()

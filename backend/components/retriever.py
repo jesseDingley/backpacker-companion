@@ -16,7 +16,7 @@ from backend.components.prompts import ShortInstructions
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='\n\n%(asctime)s - %(levelname)s - %(message)s\n\n'
 )
 
 class Retriever:
@@ -105,7 +105,7 @@ class Retriever:
 
             t0 = time()
             print('\n\n')
-            logging.info("\nRetrieving documents...")
+            logging.info("Retrieving documents...")
 
             def call_api():
                 return requests.post(
@@ -132,7 +132,7 @@ class Retriever:
                         raise HTTPError(str(response.status_code))
 
             t1 = time()
-            logging.info(f"\nRetrieval time: {t1 - t0:.2f} seconds")
+            logging.info(f"Retrieval time: {t1 - t0:.2f} seconds")
 
             retrieved_docs = response.json()["res"]
 
