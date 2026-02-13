@@ -8,11 +8,13 @@ Travel & Backpacking companion RAG Chatbot deployed as a Streamlit web applicati
 
 ## About
 
-The RAG system leverages chunks of blogs scraped from [The Broke Backpacker](http://thebrokebackpacker.com/), which are saved to a Chroma collection deployed to GCP as a Cloud Run service.
+The RAG system leverages chunks of blogs scraped from The Broke Backpacker, which are saved to a Chroma collection deployed to GCP as a Cloud Run service.
 
-Hybrid retrieval (BM25 + Vector Search) is implemented, for which a custom retriever is deployed to another Cloud Run service. The BM25 component of the retriever leverages the plain text blog chunks, and the Vector Search component is the Chroma service.
+I implement a hybrid retriever (BM25 + Vector Search) that is deployed as a FastAPI API to another Cloud Run service. The BM25 component of the retriever implemented with Llamaindex leverages the plain text blog chunks. The Vector Search component of the retriever calls the Chroma service.
 
 User authentication is managed by Sign-in with Google and users will be forcefully logged out after one hour (Google ID Token expiry time).
+
+LangChain is used for LLM logic and prompt engineering; ChromaDB for vector store and search; Llamaindex for BM25 KW search; Hugging Face Inference Endpoints (prod) / Ollama (local) for the LLM endpoints; and Streamlit for a simple front-end.
 
 **Important Notes**:  
 
