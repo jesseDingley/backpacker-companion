@@ -6,7 +6,7 @@ import random
 from requests import HTTPError
 from PIL import Image
 
-from backend.base import Base
+from backend.base import Base, wake_up_llm_endpoint
 from backend.config.const import CST
 from backend.components.prompts import Prompts, ShortInstructions
 from backend.components.retriever import Retriever
@@ -586,3 +586,20 @@ class Chat(Base):
                         print("\n\n")
                     else:
                         print("\n\nNO DOCUMENTS RETRIEVED")
+
+    def run_app_safe(self) -> None:
+        """
+        Run streamlit app
+
+        with a try except to deal with LLM Endpoint auto-scaling to zero
+        """
+        try:
+            self.run_app()
+        except Exception as e:
+            if "503" in str(e) or "service_unavailable" in str(e).lower():
+                logging.warning("LLM server down. Starting it back up.")
+                wake_up_llm_endpoint().clear()
+                wake_up_llm_endpoint()
+                self.run_app()
+            else:
+                raise

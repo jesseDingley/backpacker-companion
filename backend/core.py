@@ -13,4 +13,4 @@ def update_vectordb() -> None:
 def run() -> None:
     """Runs streamlit app."""
     from backend.chat import Chat
-    Chat().run_app()
+    Chat().run_app_safe()
