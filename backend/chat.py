@@ -598,7 +598,7 @@ class Chat(Base):
         except Exception as e:
             if "503" in str(e) or "service_unavailable" in str(e).lower():
                 logging.warning("LLM server down. Starting it back up.")
-                wake_up_llm_endpoint().clear()
+                wake_up_llm_endpoint.clear()
                 wake_up_llm_endpoint()
                 self.run_app()
             else:
