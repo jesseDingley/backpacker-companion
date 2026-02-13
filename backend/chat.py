@@ -449,6 +449,16 @@ class Chat(Base):
 
         st.session_state["num_interactions"] += 1
 
+        if "warming_up_llm_again" not in st.session_state:
+            st.session_state.warming_up_llm_again = False
+
+        if st.session_state.warming_up_llm_again:
+            with st.spinner("Restarting LLM endpoint..."):
+                wake_up_llm_endpoint.clear()
+                wake_up_llm_endpoint()  
+            st.session_state.warming_up_llm_again = False
+            st.rerun()
+
         if not st.user.is_logged_in:
 
             logging.info("User is logged out.")
@@ -598,8 +608,7 @@ class Chat(Base):
         except Exception as e:
             if "503" in str(e) or "service_unavailable" in str(e).lower():
                 logging.warning("LLM server down. Starting it back up.")
-                wake_up_llm_endpoint.clear()
-                wake_up_llm_endpoint()
-                self.run_app()
+                st.session_state.warming_up_llm_again = True
+                st.rerun()
             else:
                 raise
