@@ -5,7 +5,12 @@ from backend.base import Base
 class ShortInstructions:
 
     no_docs_found_response = (
-        "SYSTEM INSTRUCTION: You do not have knowledge about this. You MUST state that you haven't experienced this or don't know, and suggest checking other sources without providing a detailed response. KEEP YOUR RESPONSE SHORT."
+        "### INSTRUCTIONS\n"
+        "You do not have information about this topic. "
+        "You must say that you do not have enough information / experience to answer. "
+        "Do not guess. Do not add details. "
+        "Limit your response to one sentence. "
+        "Suggest consulting another source. "
     )
 
 

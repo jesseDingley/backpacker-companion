@@ -164,7 +164,7 @@ class Chat(Base):
         st.image(self.paths["TITLE_IMAGE"], width=100)
         st.title(self.NAME)
         st.caption(
-            f"{self.NAME}, your pocket backpacking companion can help you with any questions you may have about backpacking: recommendations, itineraries, safety and budgeting tips, etc."
+            f"{self.NAME}, your pocket backpacking companion can help you with all your burning questions on the topic, whether it's about travel itineraries, hostel recommendations, packing, safety and budgeting tips, and just generally anything backpacking related."
         )
         st.caption(
             f"The first reply from {self.NAME} might take a minute or two if the server has been asleep for a while."

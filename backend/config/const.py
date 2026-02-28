@@ -18,10 +18,17 @@ class CST:
     MAX_NEW_TOKENS = 1024
     
     # LLM Parameters
-    TEMPERATURE = 1.2
-    TOP_K = 100
-    TOP_P = 0.95
-    REPEAT_PENALTY = 0.95
+
+    # Original values:
+        #TEMPERATURE = 1.2
+        #TOP_K = 100
+        #TOP_P = 0.95
+        #REPEAT_PENALTY = 0.95
+
+    TEMPERATURE = 0.3
+    TOP_K = 40
+    TOP_P = 0.8
+    REPEAT_PENALTY = 1.1
 
     # Max number of turns to store in memory
     # A turn is a (user, assistant) pair.
