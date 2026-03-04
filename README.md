@@ -4,8 +4,6 @@ Travel & Backpacking companion RAG Chatbot deployed as a Streamlit web applicati
 
 [Web App link](https://backpacker-companion.streamlit.app)
 
-*Note:* may not be live.
-
 ## About
 
 The RAG system leverages chunks of blogs scraped from The Broke Backpacker, which are saved to a Chroma collection deployed to GCP as a Cloud Run service.
@@ -16,23 +14,23 @@ User authentication is managed by Sign-in with Google and users will be forceful
 
 LangChain is used for LLM logic and prompt engineering; ChromaDB for vector store and search; Llamaindex for BM25 KW search; Hugging Face Inference Endpoints (prod) / Ollama (local) for the LLM endpoints; and Streamlit for a simple front-end.
 
-**Important Notes**:  
+**Notes**:  
 
-- *The code in this branch is used in production*
-- *You cannot run this app locally unless you also:*
-    - Have a HF Inference Endpoint / Ollama model downloaded
-    - Deploy Chroma as a Cloud Run service 
-    - Create & Populate a collection to the Chroma service.
-    - Deploy a (hybrid) retriever to a Cloud Run service.
+- *The code in this branch (main) is used in production.*
+- *["local"](https://github.com/jesseDingley/backpacker-companion/tree/local) contains a simple system capable of running locally.*
+- *["hybrid-retriever-no-jwt"](https://github.com/jesseDingley/backpacker-companion/tree/hybrid-retriever-no-jwt) contains hybrid retriever code.*
+- *LLM runs on Ollama when executed locally.*
 
-## Install & Run 
+
+## Developer Notes
+
+### Install & Run
 
 ```
 $ make rerun
 ```
 
-
-## Deploying Chroma
+### Deploying Chroma
 
 To (re) deploy Chroma as a Google Cloud Run service, run
 
@@ -57,7 +55,7 @@ $ make deploy-chroma-copy \
 
 (Downloads the entire Chroma collection from the GCS bucket to the container's local filesystem. This method is only to be used if the collection already exists. Attempting to write to the collection with this service will not update the collection in the GCS bucket, only the ephemeral copied collection to the service container.)
 
-## Populating Chroma Collection
+### Populating Chroma Collection
 
 Run
 
@@ -67,11 +65,7 @@ $ make create-collection
 
 to scrape, chunk, vectorize and add blogs to previously created Chroma service.
 
-## Deploying Hybrid Retriever
+### Deploying Hybrid Retriever
 
 See `hybrid-retriever-no-jwt` branch.
 
-## Branches
-
-- ["local"](https://github.com/jesseDingley/backpacker-companion/tree/local) contains a simple system capable of running locally.
-- ["hybrid-retriever-no-jwt"](https://github.com/jesseDingley/backpacker-companion/tree/hybrid-retriever-no-jwt) contains hybrid retriever code.
