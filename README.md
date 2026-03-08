@@ -80,5 +80,7 @@ $ cd backend
 $ gcloud run deploy --source . --memory 4Gi
 ```
 
+When prompted give the service the name "hretriever".
+
 **NOTE**: This always has to be done after creating the Docstore even if the service already exists.
 
