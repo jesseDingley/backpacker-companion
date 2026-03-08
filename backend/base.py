@@ -6,17 +6,13 @@ import logging
 import re
 
 from langchain_openai import ChatOpenAI
-from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
+from langchain_huggingface import HuggingFaceEndpoint
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_ollama import ChatOllama
 
-import chromadb
 import streamlit as st
 from omegaconf import OmegaConf
 from huggingface_hub import login
-
-from google.oauth2.service_account import IDTokenCredentials
-import google.auth.transport.requests
 
 from backend.config.const import CST
 
@@ -24,45 +20,6 @@ from backend.config.const import CST
 def login_hf() -> None:
     """Login to HF in order to access inference endpoints."""
     login(token=st.secrets["secrets"]["huggingface_api_key"])
-
-@st.cache_resource(show_spinner="Loading Embeddings")
-def load_emb_ft(embedding_model: str) -> HuggingFaceEmbeddings:
-    """
-    Load HF embedding function.
-    
-    Args:
-        embedding_model (str): embedding model name
-
-    Returns:
-        HuggingFaceEmbeddings: embedding function.
-    """
-    return HuggingFaceEmbeddings(
-        model_name=embedding_model
-    )
-
-@st.cache_resource(show_spinner="Initializing Chroma Client")
-def init_chroma_client() -> chromadb.HttpClient:
-    """Returns Chroma HTTP client."""
-
-    credentials = IDTokenCredentials.from_service_account_info(
-        st.secrets["secrets"]["service_account_data"], 
-        target_audience=st.secrets["secrets"]["chroma_endpoint"]
-    )
-
-    auth_req = google.auth.transport.requests.Request()
-    credentials.refresh(auth_req)
-
-    chroma_client = chromadb.HttpClient(
-        host=st.secrets["secrets"]["chroma_endpoint"],
-        port=443,
-        ssl=True,
-        headers={
-            "Authorization": f"Bearer {credentials.token}"
-        }
-    )
-
-    assert chroma_client.heartbeat() > 0
-    return chroma_client
 
 @st.cache_resource(show_spinner="Initializing LLM")
 def init_llm(llm: str, model_name: str) -> HuggingFaceEndpoint | ChatOllama:
@@ -216,10 +173,6 @@ class Base:
             "ASSISTANT_ICON": self.config.paths.images.assistant_icon,
             "SIDEBAR": self.config.paths.ui.sidebar
         }
-
-        if os.environ.get("ENV") == "dev":
-            self.embeddings = load_emb_ft(self.collection_config["EMBEDDING_MODEL"])
-            self.chroma_client = init_chroma_client()
 
         self.llm = init_llm(
             llm=self.LLM_ENDPOINT, 

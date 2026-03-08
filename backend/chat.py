@@ -12,7 +12,7 @@ from backend.components.prompts import Prompts, ShortInstructions
 from backend.components.retriever import Retriever
 from backend.components.parsers import Parsers
 
-from langchain_chroma import Chroma
+#from langchain_chroma import Chroma #DEPRECATED
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.schema.output_parser import StrOutputParser
@@ -34,16 +34,22 @@ class Chat(Base):
             )
 
         else:
-            
-            vectordb = Chroma(
-                client=self.chroma_client,
-                embedding_function=self.embeddings,
-                collection_name=self.collection_config["NAME"]
-            )
+
+            logging.warning("Vector retrieval deprecated. Defaulting to hybrid.")
 
             retriever = Retriever(
-                search_type="vector", vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD
+                search_type="hybrid", k=CST.K, threshold=CST.THRESHOLD
             )
+            
+            #    vectordb = Chroma(
+            #        client=self.chroma_client,
+            #        embedding_function=self.embeddings,
+            #        collection_name=self.collection_config["NAME"]
+            #    )
+            #
+            #    retriever = Retriever(
+            #        search_type="vector", vectordb=vectordb, k=CST.K, threshold=CST.THRESHOLD
+            #    )
 
         prompts = Prompts()
 

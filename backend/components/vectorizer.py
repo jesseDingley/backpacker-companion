@@ -8,10 +8,17 @@ from tqdm import tqdm
 from backend.components.loader import PostURLLoader
 from backend.components.splitter import PostTextSplitter
 from backend.config.const import CST
-from backend.base import Base, init_chroma_client
+from backend.base import Base
 from langchain_chroma import Chroma
 from newspaper import Config
 from bs4 import BeautifulSoup
+
+from google.oauth2.service_account import IDTokenCredentials
+from langchain_huggingface import HuggingFaceEmbeddings
+import google.auth.transport.requests
+import streamlit as st
+
+import chromadb
 
 class Vectorizer(Base):
     """
@@ -47,7 +54,37 @@ class Vectorizer(Base):
 
         self.text_splitter = PostTextSplitter()
 
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name=self.collection_config["EMBEDDING_MODEL"]
+        )
+
+        self.chroma_client = Vectorizer.init_chroma_client()
+
         self.collection = None
+
+    @staticmethod
+    def init_chroma_client() -> chromadb.HttpClient:
+        """Returns Chroma HTTP client."""
+
+        credentials = IDTokenCredentials.from_service_account_info(
+            st.secrets["secrets"]["service_account_data"], 
+            target_audience=st.secrets["secrets"]["chroma_endpoint"]
+        )
+
+        auth_req = google.auth.transport.requests.Request()
+        credentials.refresh(auth_req)
+
+        chroma_client = chromadb.HttpClient(
+            host=st.secrets["secrets"]["chroma_endpoint"],
+            port=443,
+            ssl=True,
+            headers={
+                "Authorization": f"Bearer {credentials.token}"
+            }
+        )
+
+        assert chroma_client.heartbeat() > 0
+        return chroma_client
 
     def get_and_save_post_urls(self) -> None:
         """
@@ -112,7 +149,7 @@ class Vectorizer(Base):
         except Exception as e:
             if "401 Unauthorized" in str(e):
                 logging.warning("Google Cloud ID Token expired. Refreshing token...")
-                self.chroma_client = init_chroma_client()
+                self.chroma_client = Vectorizer.init_chroma_client()
                 self.get_or_create_collection()
                 self.collection.add_documents(documents=texts)
             else:
