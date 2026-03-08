@@ -24,15 +24,15 @@ LangChain is used for LLM logic and prompt engineering; ChromaDB for vector stor
 
 ## Developer Notes
 
-### Install & Run
+### Install & Run the Streamlit web app
 
 ```
 $ make rerun
 ```
 
-### Deploying Chroma
+### Build the Hybrid Retriever
 
-To (re) deploy Chroma as a Google Cloud Run service, run
+1. Deploy Chroma as a Google Cloud Run service.
 
 ```
 $ make deploy-chroma \ 
@@ -41,9 +41,17 @@ $ make deploy-chroma \
     BUCKET_NAME=<storage-bucket-name> \
     PROJECT_ID=<project-id>
 ```
-(Mounts the GCS bucket directly to the Cloud Run container using. Slow. Inspired from https://github.com/HerveMignot/chromadb-on-gcp)
+This also creates and mounts a GCS bucket directly to the Cloud Run container that will later be used to store the collection. Check out [this repo](https://github.com/HerveMignot/chromadb-on-gcp) for more info.
 
-or 
+2. Create and upload data to a Chroma collection.
+
+```
+$ make create-collection
+```
+
+This command will overwrite any existing collection in the previously created Chroma service with a new one. The process involves scraping, chunking and vectorizing all blog posts from The Broke Backpacker and uploading them to the collection. The data will be saved to the bucket.
+
+3. Deploy a fast Chroma service.
 
 ```
 $ make deploy-chroma-copy \ 
@@ -53,19 +61,24 @@ $ make deploy-chroma-copy \
     PROJECT_ID=<project-id>
 ```
 
-(Downloads the entire Chroma collection from the GCS bucket to the container's local filesystem. This method is only to be used if the collection already exists. Attempting to write to the collection with this service will not update the collection in the GCS bucket, only the ephemeral copied collection to the service container.)
+This deploys a second Chroma service that on boot will copy and download the embeddings and Chroma index files from the bucket to the fast service's container.
 
-### Populating Chroma Collection
+**NOTE**: To scrape the blogs again and update the collection, simply rerun  `make create-collection` and then reboot the fast Chroma service.
 
-Run
+4. Switch to the `hybrid-retriever-no-jwt` branch .
+
+5. Create Llamaindex Docstore for BM25 retriever
 
 ```
-$ make create-collection
+$ make create-docstore
 ```
 
-to scrape, chunk, vectorize and add blogs to previously created Chroma service.
+6. Deploy the Hybrid Retriever as a Google Cloud Run service.
 
-### Deploying Hybrid Retriever
+```
+$ cd backend
+$ gcloud run deploy --source . --memory 4Gi
+```
 
-See `hybrid-retriever-no-jwt` branch.
+**NOTE**: No need to re deploy if the service exists already.
 
