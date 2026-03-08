@@ -4,7 +4,6 @@
 
 from tqdm import tqdm
 import chromadb
-from chromadb.config import Settings
 from chromadb import Collection, ClientAPI
 from typing import List
 from llama_index.core import Document
@@ -17,10 +16,12 @@ import google.oauth2.id_token
 
 from dotenv import load_dotenv
 import os
-import requests
 
 from omegaconf import OmegaConf
-config = OmegaConf.load("config/config.yaml") #TODO
+try:
+    config = OmegaConf.load("config/config.yaml")
+except:
+    config = OmegaConf.load("backend/config/config.yaml")
 
 import logging
 logging.basicConfig(
@@ -133,5 +134,5 @@ class DocStoreManager:
 
         DocStoreManager.persist_nodes_to_docstore(
             nodes=nodes, 
-            persist_path=config.paths.docstores.bm25_docstore
+            persist_path=config.paths.docstores.backend_bm25_docstore
         )

@@ -23,3 +23,4 @@ paths:
     sidebar: "backend/ui/sidebar.md"
   docstores:
     bm25_docstore: "data/docstores/texts-docstore-v2" 
+    backend_bm25_docstore: "backend/data/docstores/texts-docstore-v2" 

@@ -190,3 +190,6 @@ backend/.gcloud-credentials.json
 backend/data/docstores/
 
 st_login_example.py
+
+deploy_tgi.sh
+deploy_vertex.py

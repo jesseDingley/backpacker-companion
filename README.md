@@ -2,6 +2,12 @@
 
 This branch contains the code for deploying the Hybrid Retriever to a Google Cloud Run Service.
 
+## Create or Update Llamaindex Docstore
+
+```
+$ make create-docstore
+```
+
 ## Deploying the service
 
 To (re) deploy the Hybrid Retriever as a Google Cloud Run service, run
